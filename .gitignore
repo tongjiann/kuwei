@@ -1,0 +1,32 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### IntelliJ IDEA ###
+.idea/
+.idea/**/**
+*.iws
+*.iml
+*.ipr
+
+### VS Code ###
+.vscode/
+
+### Mac OS ###
+.DS_Store
+
+/logs/
+
+# 忽略liquibase生成的文件
+# liquibase生成的文件，需要整理、修改后放到特定命名的xml中
+**/changelog/generated.xml
+**/changelog/**/generated.xml
+
+# 忽略PDManer的自动备份文件
+**/models/.back_*
+
+.build/**/*.jar
+
+.build/**/dist
+/log/
