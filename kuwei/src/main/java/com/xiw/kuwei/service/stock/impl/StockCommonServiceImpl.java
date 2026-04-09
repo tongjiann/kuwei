@@ -28,7 +28,10 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.*;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -174,7 +177,7 @@ public class StockCommonServiceImpl implements StockCommonService {
         JFreeChart chart = ThsTradeIndexChart.createChart(stockInfoVO, title);
 
         try {
-            ChartUtils.saveChartAsPNG(new File(StrUtil.format(title + ".png")), chart, 2400, 1600);
+            ChartUtils.saveChartAsPNG(new File(StrUtil.format(title + ".png")), chart, 3000, 1800);
         } catch (IOException e) {
             throw new LogicalException(e);
         }
