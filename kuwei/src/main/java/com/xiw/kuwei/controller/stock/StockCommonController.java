@@ -12,8 +12,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.io.IOException;
-
 /**
  * 股票每日信息
  *
@@ -48,11 +46,9 @@ public class StockCommonController extends BaseController {
     }
 
     @RequestMapping("get-extra-info")
-    public JsonResult<?> getExtraInfo(@RequestParam String stockId) throws IOException {
+    public JsonResult<?> getExtraInfo(@RequestParam String stockId) {
         int days = 120;
         StockInfoVO stockInfoVO = stockCommonService.getExtraStockInfo(stockId, days);
-
-        stockCommonService.createChartByStockInfo(stockInfoVO);
 
         return JsonResult.OK(stockInfoVO);
     }
@@ -65,5 +61,34 @@ public class StockCommonController extends BaseController {
         stockCommonService.createCharts(days);
         return JsonResult.OK();
     }
+
+    /**
+     * macd背离信号
+     */
+    @RequestMapping("macd-divergence")
+    public JsonResult<?> macdDivergence(@RequestParam String stockId) {
+        stockCommonService.macdDivergence(stockId);
+        return JsonResult.OK();
+    }
+
+
+    /**
+     * macd双金叉-双死叉信号
+     */
+    @RequestMapping("macd-signal")
+    public JsonResult<?> macdSignal(@RequestParam String stockId) {
+        stockCommonService.macdSignal(stockId);
+        return JsonResult.OK();
+    }
+
+    /**
+     * macd双金叉-双死叉信号
+     */
+    @RequestMapping("macd-signal-by-code")
+    public JsonResult<?> macdSignalByCode(@RequestParam String code) {
+        stockCommonService.macdSignalByCode(code);
+        return JsonResult.OK();
+    }
+
 
 }

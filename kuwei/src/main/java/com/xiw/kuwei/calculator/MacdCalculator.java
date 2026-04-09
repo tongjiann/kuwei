@@ -1,74 +1,97 @@
 package com.xiw.kuwei.calculator;
 
-import com.diboot.core.util.BeanUtils;
-import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 
+/**
+ * MACD 指标计算工具（使用 BigDecimal 保证精度）
+ */
 public class MacdCalculator {
 
-    private static final BigDecimal TWO = BigDecimal.valueOf(2);
+    private static final int FAST = 12;
 
-    private static final int SCALE = 2; // 保留2位小数
+    private static final int SLOW = 26;
+
+    private static final int SIGNAL = 9;
+
+    // 常量 2，用于 EMA 乘数计算
+    private static final BigDecimal TWO = new BigDecimal("2");
+
+    // 默认精度与舍入模式
+    private static final int SCALE = 10;
+
+    private static final RoundingMode ROUNDING_MODE = RoundingMode.HALF_EVEN;
 
     /**
-     * @param list sorted by Date asc
+     * 为数据列表计算 MACD 指标
      */
-    public static void calculate(List<StockDailyInfoVO> sortedList) {
+    public static void calculate(List<StockDailyInfoVO> list) {
+        if (list == null || list.size() < SLOW) return;
 
-        BigDecimal ema12 = null;
-        BigDecimal ema26 = null;
-        BigDecimal dea = BigDecimal.ZERO;
+        // 提取收盘价 (BigDecimal)
+        BigDecimal[] closePrices = list.stream()
+                .map(v -> v.getTodayClosePrice())
+                .toArray(BigDecimal[]::new);
 
-        BigDecimal alpha12 = TWO.divide(BigDecimal.valueOf(13), 10, RoundingMode.HALF_UP);
-        BigDecimal alpha26 = TWO.divide(BigDecimal.valueOf(27), 10, RoundingMode.HALF_UP);
-        BigDecimal alpha9 = TWO.divide(BigDecimal.valueOf(10), 10, RoundingMode.HALF_UP);
+        // 计算 EMA12 和 EMA26
+        BigDecimal[] ema12 = calculateEMA(closePrices, FAST);
+        BigDecimal[] ema26 = calculateEMA(closePrices, SLOW);
 
-
-        for (StockDailyInfoVO item : sortedList) {
-
-            BigDecimal close = item.getTodayClosePrice();
-
-            if (ema12 == null) {
-                ema12 = close;
-                ema26 = close;
-            } else {
-                ema12 = close.multiply(alpha12)
-                        .add(ema12.multiply(BigDecimal.ONE.subtract(alpha12)));
-
-                ema26 = close.multiply(alpha26)
-                        .add(ema26.multiply(BigDecimal.ONE.subtract(alpha26)));
-            }
-
-            BigDecimal dif = ema12.subtract(ema26);
-
-            dea = dif.multiply(alpha9)
-                    .add(dea.multiply(BigDecimal.ONE.subtract(alpha9)));
-
-            BigDecimal macd = dif.subtract(dea).multiply(TWO);
-
-            // 保留2位小数
-            ema12 = ema12.setScale(SCALE, RoundingMode.HALF_UP);
-            ema26 = ema26.setScale(SCALE, RoundingMode.HALF_UP);
-            dif = dif.setScale(SCALE, RoundingMode.HALF_UP);
-            dea = dea.setScale(SCALE, RoundingMode.HALF_UP);
-            macd = macd.setScale(SCALE, RoundingMode.HALF_UP);
-
-            MacdInfo macdInfo = new MacdInfo();
-            macdInfo.setEma12(ema12);
-            macdInfo.setEma26(ema26);
-            macdInfo.setDif(dif);
-            macdInfo.setDea(dea);
-            macdInfo.setMacd(macd);
-
-            item.setMacdInfo(macdInfo);
+        // DIF = EMA12 - EMA26
+        BigDecimal[] dif = new BigDecimal[closePrices.length];
+        for (int i = 0; i < closePrices.length; i++) {
+            dif[i] = ema12[i].subtract(ema26[i]);
         }
 
+        // DEA = EMA(DIF, 9)
+        BigDecimal[] dea = calculateEMA(dif, SIGNAL);
+
+        // MACD柱 = (DIF - DEA) * 2
+        for (int i = 0; i < list.size(); i++) {
+            BigDecimal macdVal = dif[i].subtract(dea[i]).multiply(TWO);
+            // 创建 MacdInfo 时保留适当精度（如保留 4 位小数）
+            list.get(i).setMacdInfo(new MacdInfo(
+                    dif[i].setScale(4, ROUNDING_MODE),
+                    dea[i].setScale(4, ROUNDING_MODE),
+                    macdVal.setScale(4, ROUNDING_MODE)
+            ));
+        }
     }
 
+    /**
+     * 计算指数移动平均 (EMA) —— BigDecimal 版本
+     */
+    private static BigDecimal[] calculateEMA(BigDecimal[] data, int period) {
+        BigDecimal[] ema = new BigDecimal[data.length];
+        if (data.length == 0) return ema;
+
+        // multiplier = 2 / (period + 1)
+        BigDecimal multiplier = TWO.divide(new BigDecimal(period + 1), SCALE, ROUNDING_MODE);
+
+        // 首个有效值用 SMA (简单移动平均)
+        BigDecimal sum = BigDecimal.ZERO;
+        int count = Math.min(period, data.length);
+        for (int i = 0; i < count; i++) {
+            sum = sum.add(data[i]);
+        }
+        BigDecimal sma = sum.divide(new BigDecimal(count), SCALE, ROUNDING_MODE);
+        ema[period - 1] = sma;
+
+        // 后续用 EMA 公式: EMA(today) = (Price(today) - EMA(yesterday)) * multiplier + EMA(yesterday)
+        for (int i = period; i < data.length; i++) {
+            BigDecimal diff = data[i].subtract(ema[i - 1]);
+            BigDecimal term = diff.multiply(multiplier);
+            ema[i] = term.add(ema[i - 1]);
+        }
+
+        // 前 period-1 个值填充为第一个有效 EMA 值
+        for (int i = 0; i < period - 1; i++) {
+            ema[i] = ema[period - 1];
+        }
+
+        return ema;
+    }
 }

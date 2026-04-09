@@ -1,12 +1,14 @@
 package com.xiw.kuwei.service.stock.impl;
 
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.core.util.StrUtil;
 import com.diboot.core.entity.AbstractEntity;
 import com.diboot.core.util.BeanUtils;
 import com.xiw.kuwei.calculator.MaCalculator;
 import com.xiw.kuwei.calculator.MacdCalculator;
-import com.xiw.kuwei.calculator.ThsTradeIndexChart;
+import com.xiw.kuwei.chart.ThsTradeIndexChart;
+import com.xiw.kuwei.detector.*;
 import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.entity.stock.StockInfo;
 import com.xiw.kuwei.exception.LogicalException;
@@ -15,10 +17,12 @@ import com.xiw.kuwei.helper.fetcher.abstractFetcher;
 import com.xiw.kuwei.service.stock.StockCommonService;
 import com.xiw.kuwei.service.stock.StockDailyInfoService;
 import com.xiw.kuwei.service.stock.StockInfoService;
+import com.xiw.kuwei.util.BackTestEngine;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.jetbrains.annotations.NotNull;
 import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
 import org.springframework.stereotype.Service;
@@ -49,7 +53,7 @@ public class StockCommonServiceImpl implements StockCommonService {
     private StockDailyInfoService stockDailyInfoService;
 
     @Override
-    public void initStockInfo(String code, String name) {
+    public String initStockInfo(String code, String name) {
 
         clearStockInfo(code);
         abstractFetcher fetcher = FetcherManager.getFetcher();
@@ -78,6 +82,7 @@ public class StockCommonServiceImpl implements StockCommonService {
         log.info("股票:【{}-{}】共得到{}条数据，【{}～{}】的日期内的交易信息",
                 name, code, stockDailyInfoList.size(), start.get(), end.get());
 
+        return one.getId();
     }
 
     private void clearStockInfo(String code) {
@@ -192,6 +197,108 @@ public class StockCommonServiceImpl implements StockCommonService {
             StockInfoVO extraStockInfo = getExtraStockInfo(e, days);
             createChartByStockInfo(extraStockInfo);
         });
+    }
+
+    @Override
+    public void macdDivergence(String stockId) {
+        StockInfoVO stockInfoVO = getBaseStockInfo(stockId);
+
+        List<StockDailyInfoVO> voList = stockInfoVO.getStockDailyInfoVOList();
+        // 2. 计算 MACD 指标
+        MacdCalculator.calculate(voList);
+
+        // 3. 识别背离
+        DivergenceDetector.DivergenceDetectionResult divergences = DivergenceDetector.detectAll(voList);
+
+        // 4. 打印识别结果
+        log.info("=== 背离识别结果 ===");
+        log.info("顶背离数量: " + divergences.topDivergences.size());
+        for (DivergenceResult d : divergences.topDivergences) {
+            log.info(d.toString());
+        }
+        log.info("底背离数量: " + divergences.bottomDivergences.size());
+        for (DivergenceResult d : divergences.bottomDivergences) {
+            log.info(d.toString());
+        }
+
+    }
+
+    private @NotNull StockInfoVO getBaseStockInfo(String stockId) {
+        StockInfo stockInfo = stockInfoService.getEntity(stockId);
+        if (stockInfo == null) {
+            throw new NullPointerException("stockInfo is null");
+        }
+        StockInfoVO stockInfoVO = new StockInfoVO();
+        BeanUtils.copyProperties(stockInfo, stockInfoVO);
+
+        int days = 200 * 3;
+        int totalDays = Integer.max(days * 2, days + 30);
+
+        List<StockDailyInfo> list = stockDailyInfoService.lambdaQuery()
+                .eq(StockDailyInfo::getStockId, stockInfo.getId())
+                .orderByDesc(StockDailyInfo::getDate)
+                .last("LIMIT " + totalDays)
+                .list()
+                .stream()
+                // 转正序（MACD必须按时间递增算）
+                .sorted(Comparator.comparing(StockDailyInfo::getDate))
+                .toList();
+        List<StockDailyInfoVO> voList = list.stream().map(e -> {
+            StockDailyInfoVO vo = new StockDailyInfoVO();
+            BeanUtils.copyProperties(e, vo);
+            return vo;
+        }).toList();
+        stockInfoVO.setStockDailyInfoVOList(voList);
+        return stockInfoVO;
+    }
+
+    @Override
+    public void macdSignal(String stockId) {
+        StockInfoVO stockInfoVO = getBaseStockInfo(stockId);
+        // 2. 计算 MACD 指标
+        List<StockDailyInfoVO> voList = stockInfoVO.getStockDailyInfoVOList();
+        MacdCalculator.calculate(voList);
+
+        // 3. 👇 使用新的信号检测器（忽略背离识别器）
+        String code = stockInfoVO.getCode();
+        String name = stockInfoVO.getName();
+        List<Signal> signals = MacdSignalDetector.detectSignals(voList, code);
+
+        // 4. 打印信号
+        log.info("==== {}-{} MACD 交易信号 ====", code, name);
+        for (Signal s : signals) {
+            log.info(s.toString());
+        }
+
+        List<BackTestRecord> backTestRecordList = BackTestEngine.runBackTest(signals, new BigDecimal("1000000"), code);
+        log.info("==== {}-{} MACD 回测交易信息 ====", code, name);
+        for (BackTestRecord backTestRecord : backTestRecordList) {
+            log.info(backTestRecord.toString());
+        }
+
+        // JFreeChart chart = AssetChart.createChart(backTestRecordList);
+        // try {
+        //     ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format("{}-{}_asset.png", code, name)), chart, 3000, 1800);
+        // } catch (IOException e) {
+        //     throw new LogicalException(e);
+        // }
+    }
+
+    @Override
+    public void macdSignalByCode(String code) {
+        String stockId;
+        if (code == null) {
+            throw new NullPointerException("code is null");
+        }
+        List<StockInfo> list = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).list();
+        if (CollUtil.isEmpty(list)) {
+            stockId = initStockInfo(code, "自动初始化");
+        } else {
+            stockId = list.get(0).getId();
+        }
+        if (stockId != null) {
+            macdSignal(stockId);
+        }
     }
 
 }

@@ -1,10 +1,14 @@
 package com.xiw.kuwei.calculator;
 
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class MacdInfo {
 
     /**
@@ -31,5 +35,11 @@ public class MacdInfo {
      * MACD柱
      */
     private BigDecimal macd;
+
+    public MacdInfo(BigDecimal dif, BigDecimal dea, BigDecimal macd) {
+        this.dif = dif;
+        this.dea = dea;
+        this.macd = macd;
+    }
 
 }

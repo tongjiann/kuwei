@@ -15,12 +15,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.math.BigDecimal;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Date;
+import java.util.List;
 
 @Fetcher(type = 1, order = 1, platform = "新浪财经")
 public class SinaFetcher extends abstractFetcher {
 
-    private static final int DEFAULT_DAY_LENGTH = 365 * 3;
+    private static final int DEFAULT_DAY_LENGTH = 365 * 5;
 
     private static final int DEFAULT_TRANSACTION_MINUTE = 240;
 

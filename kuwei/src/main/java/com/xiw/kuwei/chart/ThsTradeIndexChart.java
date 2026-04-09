@@ -1,20 +1,22 @@
-package com.xiw.kuwei.calculator;
+package com.xiw.kuwei.chart;
 
+import com.xiw.kuwei.chart.render.ChineseCandlestickRenderer;
+import com.xiw.kuwei.chart.render.MacdBarRenderer;
+import com.xiw.kuwei.chart.render.VolumeBarRenderer;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.axis.SymbolAxis;
-import org.jfree.chart.axis.ValueAxis;
-import org.jfree.chart.plot.*;
-import org.jfree.chart.renderer.xy.*;
+import org.jfree.chart.plot.CombinedDomainXYPlot;
+import org.jfree.chart.plot.ValueMarker;
+import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.xy.StandardXYBarPainter;
+import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.chart.title.TextTitle;
-import org.jfree.chart.util.ShapeUtils;
 import org.jfree.data.xy.*;
 
 import java.awt.*;
-import java.awt.geom.Line2D;
-import java.awt.geom.Rectangle2D;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.util.Date;
@@ -31,7 +33,7 @@ public class ThsTradeIndexChart {
         DefaultHighLowDataset ohlc = buildKlineDataset(list);
         NumberAxis priceAxis = createPriceAxis(list);
 
-        MyCandlestickRenderer renderer = new MyCandlestickRenderer();
+        ChineseCandlestickRenderer renderer = new ChineseCandlestickRenderer();
         renderer.setUpPaint(Color.RED);
         renderer.setDownPaint(Color.GREEN);
 
@@ -102,8 +104,6 @@ public class ThsTradeIndexChart {
         XYSeries dea = new XYSeries("DEA");
         XYSeries macd = new XYSeries("MACD");
 
-        XYSeries topDiv = new XYSeries("TopDiv");     // 顶背离
-        XYSeries bottomDiv = new XYSeries("BottomDiv"); // 底背离
 
         for (int i = 0; i < list.size(); i++) {
 
@@ -119,43 +119,11 @@ public class ThsTradeIndexChart {
             macd.add(i, macdVal);
         }
 
-        // ================= 背离识别 =================
-        for (int i = 2; i < list.size(); i++) {
-
-            StockDailyInfoVO p1 = list.get(i - 2);
-            StockDailyInfoVO p2 = list.get(i);
-
-            if (p1.getMacdInfo() == null || p2.getMacdInfo() == null) continue;
-
-            double price1 = p1.getHighPrice().doubleValue();
-            double price2 = p2.getHighPrice().doubleValue();
-
-            double dif1 = p1.getMacdInfo().getDif().doubleValue();
-            double dif2 = p2.getMacdInfo().getDif().doubleValue();
-
-            // 🔴 顶背离
-            if (price2 > price1 && dif2 < dif1) {
-                topDiv.add(i, dif2);
-            }
-
-            // 🟢 底背离
-            double low1 = p1.getLowPrice().doubleValue();
-            double low2 = p2.getLowPrice().doubleValue();
-
-            if (low2 < low1 && dif2 > dif1) {
-                bottomDiv.add(i, dif2);
-            }
-        }
-
         XYBarDataset barDataset = new XYBarDataset(new XYSeriesCollection(macd), 0.2);
 
         XYSeriesCollection lineDs = new XYSeriesCollection();
         lineDs.addSeries(dif);
         lineDs.addSeries(dea);
-
-        XYSeriesCollection divDs = new XYSeriesCollection();
-        divDs.addSeries(topDiv);
-        divDs.addSeries(bottomDiv);
 
         NumberAxis axis = new NumberAxis("MACD");
         axis.setLabelPaint(Color.WHITE);
@@ -171,16 +139,6 @@ public class ThsTradeIndexChart {
         lineRenderer.setSeriesPaint(0, new Color( 87,100,246));
         lineRenderer.setSeriesPaint(1 , new Color(219, 93,238));
 
-        XYLineAndShapeRenderer divRenderer = new XYLineAndShapeRenderer(false, true);
-
-        // 🔴 顶背离
-        divRenderer.setSeriesPaint(0, Color.RED);
-        divRenderer.setSeriesShape(0, ShapeUtils.createDownTriangle(8));
-
-        // 🟢 底背离
-        divRenderer.setSeriesPaint(1, Color.GREEN);
-        divRenderer.setSeriesShape(1, ShapeUtils.createUpTriangle(8));
-
         XYPlot plot = new XYPlot();
         plot.setRangeAxis(axis);
 
@@ -189,9 +147,6 @@ public class ThsTradeIndexChart {
 
         plot.setDataset(1, lineDs);
         plot.setRenderer(1, lineRenderer);
-
-        plot.setDataset(2, divDs);
-        plot.setRenderer(2, divRenderer);
 
         // 👉 0轴
         ValueMarker zero = new ValueMarker(0);
@@ -295,104 +250,10 @@ public class ThsTradeIndexChart {
         return axis;
     }
 
-    private static void applyDarkTheme(XYPlot plot) {
+    static void applyDarkTheme(XYPlot plot) {
         plot.setBackgroundPaint(Color.BLACK);
         plot.setRangeGridlinePaint(new Color(60, 60, 60));
         plot.setDomainGridlinePaint(new Color(60, 60, 60));
-    }
-
-    // ================= Renderer =================
-    static class MacdBarRenderer extends XYBarRenderer {
-
-        @Override
-        public Paint getItemPaint(int row, int col) {
-            double v = getPlot().getDataset(0).getYValue(row, col);
-            return v >= 0 ? Color.RED : Color.GREEN;
-        }
-
-    }
-
-    static class MyCandlestickRenderer extends CandlestickRenderer {
-
-        @Override
-        public void drawItem(Graphics2D g2, XYItemRendererState state, Rectangle2D dataArea,
-                             PlotRenderingInfo info, XYPlot plot, ValueAxis domainAxis, ValueAxis rangeAxis,
-                             XYDataset dataset, int series, int item, CrosshairState crosshairState,
-                             int pass) {
-
-            OHLCDataset highLow = (OHLCDataset) dataset;
-
-            double open = highLow.getOpenValue(series, item);
-            double close = highLow.getCloseValue(series, item);
-            double high = highLow.getHighValue(series, item);
-            double low = highLow.getLowValue(series, item);
-
-            double x = domainAxis.valueToJava2D(item, dataArea, plot.getDomainAxisEdge());
-            double yOpen = rangeAxis.valueToJava2D(open, dataArea, plot.getRangeAxisEdge());
-            double yClose = rangeAxis.valueToJava2D(close, dataArea, plot.getRangeAxisEdge());
-            double yHigh = rangeAxis.valueToJava2D(high, dataArea, plot.getRangeAxisEdge());
-            double yLow = rangeAxis.valueToJava2D(low, dataArea, plot.getRangeAxisEdge());
-
-            double barWidth = 10;
-
-            // ------------------ 颜色 ------------------
-            boolean up = close >= open;
-
-            if (up) {
-                g2.setPaint(Color.RED); // 红色边框
-                g2.setStroke(new BasicStroke(1.5f));
-                // 画空心矩形
-                Rectangle2D rect = new Rectangle2D.Double(x - barWidth / 2, Math.min(yOpen, yClose),
-                        barWidth, Math.abs(yClose - yOpen));
-                g2.draw(rect);
-            } else {
-                g2.setPaint(Color.GREEN); // 绿色实心
-                Rectangle2D rect = new Rectangle2D.Double(x - barWidth / 2, Math.min(yOpen, yClose),
-                        barWidth, Math.abs(yClose - yOpen));
-                g2.fill(rect);
-            }
-
-            // ------------------ 上下影线 ------------------
-            g2.setPaint(Color.WHITE);
-            g2.setStroke(new BasicStroke(1.0f));
-            g2.draw(new Line2D.Double(x, yHigh, x, Math.min(yOpen, yClose)));
-            g2.draw(new Line2D.Double(x, yLow, x, Math.max(yOpen, yClose)));
-        }
-
-    }
-
-    // ================= 交易量渲染器（涨空心、跌实心） =================
-    static class VolumeBarRenderer extends XYBarRenderer {
-
-        private final List<StockDailyInfoVO> list;
-
-        public VolumeBarRenderer(List<StockDailyInfoVO> list) {
-            super();
-            this.list = list;
-            setShadowVisible(false);
-            setBarPainter(new StandardXYBarPainter());
-            setDrawBarOutline(true); // 开启边框
-            setSeriesOutlinePaint(0, Color.RED); // 默认边框颜色
-            setSeriesOutlineStroke(0, new BasicStroke(1.5f));
-        }
-
-        @Override
-        public Paint getItemPaint(int row, int col) {
-            if (col >= list.size()) return Color.GRAY;
-            StockDailyInfoVO d = list.get(col);
-            double diff = d.getTodayClosePrice().doubleValue() - d.getOpenPrice().doubleValue();
-
-            if (diff >= 0) {
-                // 涨 → 空心柱，只画边框
-                setSeriesOutlinePaint(0, Color.RED);
-                return new Color(0, 0, 0, 0); // 透明填充
-            } else {
-                // 跌 → 实心柱
-                setSeriesOutlinePaint(0, Color.GREEN);
-                return Color.GREEN;
-            }
-        }
-
     }
 
 }

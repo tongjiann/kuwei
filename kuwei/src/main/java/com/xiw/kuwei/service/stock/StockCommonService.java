@@ -4,7 +4,7 @@ import com.xiw.kuwei.vo.stock.StockInfoVO;
 
 public interface StockCommonService {
 
-    void initStockInfo(String code, String name);
+    String initStockInfo(String code, String name);
 
     void updateStockDailyInfo();
 
@@ -14,5 +14,11 @@ public interface StockCommonService {
     void createChartByStockInfo(StockInfoVO stockId);
 
     void createCharts(int days);
+
+    void macdDivergence(String stockId);
+
+    void macdSignal(String stockId);
+
+    void macdSignalByCode(String code);
 
 }
