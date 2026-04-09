@@ -5,18 +5,16 @@ import com.xiw.kuwei.vo.stock.StockInfoVO;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.axis.SymbolAxis;
-import org.jfree.chart.plot.CombinedDomainXYPlot;
-import org.jfree.chart.plot.ValueMarker;
-import org.jfree.chart.plot.XYPlot;
-import org.jfree.chart.renderer.xy.CandlestickRenderer;
-import org.jfree.chart.renderer.xy.StandardXYBarPainter;
-import org.jfree.chart.renderer.xy.XYBarRenderer;
-import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.chart.axis.ValueAxis;
+import org.jfree.chart.plot.*;
+import org.jfree.chart.renderer.xy.*;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.util.ShapeUtils;
 import org.jfree.data.xy.*;
 
 import java.awt.*;
+import java.awt.geom.Line2D;
+import java.awt.geom.Rectangle2D;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
 import java.util.ArrayList;
@@ -31,6 +29,7 @@ public class ThsTradeIndexChart {
 
         SymbolAxis xAxis = createTradeAxis(list);
 
+        // ================= K线 =================
         DefaultHighLowDataset ohlc = buildKlineDataset(list);
         NumberAxis priceAxis = createPriceAxis(list);
 
@@ -38,41 +37,66 @@ public class ThsTradeIndexChart {
         renderer.setUpPaint(Color.RED);
         renderer.setDownPaint(Color.GREEN);
 
-        XYPlot klinePlot = new XYPlot(ohlc, xAxis, priceAxis, renderer);
+        XYPlot klinePlot = new XYPlot(ohlc, null, priceAxis, renderer);
         applyDarkTheme(klinePlot);
 
-        addMaLine(klinePlot, list, 5, new Color(236,167, 71), 1);
-        addMaLine(klinePlot, list, 10, new Color(103,142,226), 2);
-        addMaLine(klinePlot, list, 20, new Color(230, 91,186), 3);
-        addMaLine(klinePlot, list, 30, new Color(142, 79, 51), 4);
+        // 添加均线
+        addMaLine(klinePlot, list, 5, Color.YELLOW, 1);
+        addMaLine(klinePlot, list, 10, Color.CYAN, 2);
+        addMaLine(klinePlot, list, 20, Color.MAGENTA, 3);
+        addMaLine(klinePlot, list, 30, Color.ORANGE, 4);
 
+        // ================= 交易量 =================
+        NumberAxis volumeAxis = new NumberAxis("成交量");
+        volumeAxis.setAutoRangeIncludesZero(true);
+        volumeAxis.setLabelPaint(Color.WHITE);
+        volumeAxis.setTickLabelPaint(Color.WHITE);
+
+        XYBarDataset volumeDataset = new XYBarDataset(buildVolumeDataset(list), 0.8);
+        VolumeBarRenderer volumeRenderer = new VolumeBarRenderer(list); // 使用自定义渲染器
+        volumeRenderer.setBarPainter(new StandardXYBarPainter());
+
+        XYPlot volumePlot = new XYPlot(volumeDataset, null, volumeAxis, volumeRenderer);
+        applyDarkTheme(volumePlot);
+
+        // ================= MACD =================
         XYPlot macdPlot = createMacdPlot(list);
-        macdPlot.setDomainAxis(xAxis);
 
+        // ================= 合并 =================
         CombinedDomainXYPlot combined = new CombinedDomainXYPlot(xAxis);
         combined.add(klinePlot, 3);
-        combined.add(macdPlot, 1);
+        combined.add(volumePlot, 1);   // 交易量权重
+        combined.add(macdPlot, 1);     // MACD权重
 
         JFreeChart chart = new JFreeChart(
                 title,                     // 主标题
-                new Font("Arial", Font.BOLD, 50),
+                new Font("微软雅黑", Font.BOLD, 50),
                 combined,                  // CombinedDomainXYPlot
                 true                       // 显示图例
         );
 
+        chart.getTitle().setPaint(Color.WHITE);
+
         // 设置暗黑背景
         chart.setBackgroundPaint(Color.BLACK);
 
-        // 🔹 主标题颜色
-        chart.getTitle().setPaint(Color.WHITE);
-
-        // 🔹 添加副标题
-        TextTitle subTitle = new TextTitle("MACD & K线分析", new Font("微软雅黑", Font.PLAIN, 20));
+        // 添加副标题
+        TextTitle subTitle = new TextTitle("MACD + K线 + 成交量", new Font("微软雅黑", Font.PLAIN, 12));
         subTitle.setPaint(Color.LIGHT_GRAY);
         chart.addSubtitle(subTitle);
+
         return chart;
     }
 
+    // ================= 生成交易量数据集 =================
+    private static XYDataset buildVolumeDataset(List<StockDailyInfoVO> list) {
+        XYSeries series = new XYSeries("Volume");
+        for (int i = 0; i < list.size(); i++) {
+            StockDailyInfoVO d = list.get(i);
+            series.add(i, d.getTurnover().doubleValue());
+        }
+        return new XYSeriesCollection(series);
+    }
     // ================= MACD + 背离 =================
     private static XYPlot createMacdPlot(List<StockDailyInfoVO> list) {
 
@@ -321,13 +345,82 @@ public class ThsTradeIndexChart {
     static class MyCandlestickRenderer extends CandlestickRenderer {
 
         @Override
-        public Paint getItemPaint(int row, int column) {
+        public void drawItem(Graphics2D g2, XYItemRendererState state, Rectangle2D dataArea,
+                             PlotRenderingInfo info, XYPlot plot, ValueAxis domainAxis, ValueAxis rangeAxis,
+                             XYDataset dataset, int series, int item, CrosshairState crosshairState,
+                             int pass) {
 
-            OHLCDataset ds = (OHLCDataset) getPlot().getDataset();
-            double open = ds.getOpenValue(row, column);
-            double close = ds.getCloseValue(row, column);
+            OHLCDataset highLow = (OHLCDataset) dataset;
 
-            return close >= open ? Color.RED : Color.GREEN;
+            double open = highLow.getOpenValue(series, item);
+            double close = highLow.getCloseValue(series, item);
+            double high = highLow.getHighValue(series, item);
+            double low = highLow.getLowValue(series, item);
+
+            double x = domainAxis.valueToJava2D(item, dataArea, plot.getDomainAxisEdge());
+            double yOpen = rangeAxis.valueToJava2D(open, dataArea, plot.getRangeAxisEdge());
+            double yClose = rangeAxis.valueToJava2D(close, dataArea, plot.getRangeAxisEdge());
+            double yHigh = rangeAxis.valueToJava2D(high, dataArea, plot.getRangeAxisEdge());
+            double yLow = rangeAxis.valueToJava2D(low, dataArea, plot.getRangeAxisEdge());
+
+            double barWidth = 10;
+
+            // ------------------ 颜色 ------------------
+            boolean up = close >= open;
+
+            if (up) {
+                g2.setPaint(Color.RED); // 红色边框
+                g2.setStroke(new BasicStroke(1.5f));
+                // 画空心矩形
+                Rectangle2D rect = new Rectangle2D.Double(x - barWidth / 2, Math.min(yOpen, yClose),
+                        barWidth, Math.abs(yClose - yOpen));
+                g2.draw(rect);
+            } else {
+                g2.setPaint(Color.GREEN); // 绿色实心
+                Rectangle2D rect = new Rectangle2D.Double(x - barWidth / 2, Math.min(yOpen, yClose),
+                        barWidth, Math.abs(yClose - yOpen));
+                g2.fill(rect);
+            }
+
+            // ------------------ 上下影线 ------------------
+            g2.setPaint(Color.WHITE);
+            g2.setStroke(new BasicStroke(1.0f));
+            g2.draw(new Line2D.Double(x, yHigh, x, Math.min(yOpen, yClose)));
+            g2.draw(new Line2D.Double(x, yLow, x, Math.max(yOpen, yClose)));
+        }
+
+    }
+
+    // ================= 交易量渲染器（涨空心、跌实心） =================
+    static class VolumeBarRenderer extends XYBarRenderer {
+
+        private final List<StockDailyInfoVO> list;
+
+        public VolumeBarRenderer(List<StockDailyInfoVO> list) {
+            super();
+            this.list = list;
+            setShadowVisible(false);
+            setBarPainter(new StandardXYBarPainter());
+            setDrawBarOutline(true); // 开启边框
+            setSeriesOutlinePaint(0, Color.RED); // 默认边框颜色
+            setSeriesOutlineStroke(0, new BasicStroke(1.5f));
+        }
+
+        @Override
+        public Paint getItemPaint(int row, int col) {
+            if (col >= list.size()) return Color.GRAY;
+            StockDailyInfoVO d = list.get(col);
+            double diff = d.getTodayClosePrice().doubleValue() - d.getOpenPrice().doubleValue();
+
+            if (diff >= 0) {
+                // 涨 → 空心柱，只画边框
+                setSeriesOutlinePaint(0, Color.RED);
+                return new Color(0, 0, 0, 0); // 透明填充
+            } else {
+                // 跌 → 实心柱
+                setSeriesOutlinePaint(0, Color.GREEN);
+                return Color.GREEN;
+            }
         }
 
     }
