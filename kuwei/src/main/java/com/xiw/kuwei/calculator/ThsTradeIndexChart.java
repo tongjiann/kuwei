@@ -17,10 +17,8 @@ import java.awt.geom.Line2D;
 import java.awt.geom.Rectangle2D;
 import java.math.BigDecimal;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
-import java.util.Random;
 
 public class ThsTradeIndexChart {
 
@@ -301,34 +299,6 @@ public class ThsTradeIndexChart {
         plot.setBackgroundPaint(Color.BLACK);
         plot.setRangeGridlinePaint(new Color(60, 60, 60));
         plot.setDomainGridlinePaint(new Color(60, 60, 60));
-    }
-
-    // ================= mock =================
-    private static List<StockDailyInfoVO> mockData() {
-
-        List<StockDailyInfoVO> list = new ArrayList<>();
-        Random r = new Random();
-        double price = 100;
-
-        for (int i = 0; i < 80; i++) {
-
-            StockDailyInfoVO vo = new StockDailyInfoVO();
-            vo.setDate(java.time.LocalDate.now().minusDays(80 - i));
-
-            double open = price + r.nextDouble() * 4 - 2;
-            double close = open + r.nextDouble() * 4 - 2;
-            double high = Math.max(open, close) + r.nextDouble();
-            double low = Math.min(open, close) - r.nextDouble();
-
-            vo.setOpenPrice(BigDecimal.valueOf(open));
-            vo.setTodayClosePrice(BigDecimal.valueOf(close));
-            vo.setHighPrice(BigDecimal.valueOf(high));
-            vo.setLowPrice(BigDecimal.valueOf(low));
-
-            price = close;
-            list.add(vo);
-        }
-        return list;
     }
 
     // ================= Renderer =================
