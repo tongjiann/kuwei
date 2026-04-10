@@ -90,5 +90,14 @@ public class StockCommonController extends BaseController {
         return JsonResult.OK();
     }
 
+    /**
+     * 多策略对比
+     */
+    @RequestMapping("multi-test")
+    public JsonResult<?> multiTest(@RequestParam String code) {
+        stockCommonService.multiTest(code);
+        return JsonResult.OK();
+    }
+
 
 }

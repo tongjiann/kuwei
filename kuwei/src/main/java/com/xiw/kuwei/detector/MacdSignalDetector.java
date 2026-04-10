@@ -1,5 +1,7 @@
 package com.xiw.kuwei.detector;
 
+import com.xiw.kuwei.annotation.Detector;
+import com.xiw.kuwei.calculator.MacdCalculator;
 import com.xiw.kuwei.calculator.MacdInfo;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 
@@ -15,7 +17,8 @@ import java.util.*;
  * MACD 金叉/死叉交易信号识别器（BigDecimal 版本）
  * 输出标准 Signal 对象
  */
-public class MacdSignalDetector {
+@Detector(name = "MACD 金叉/死叉交易信号识别器")
+public class MacdSignalDetector implements DetectorInterface {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO;
 
@@ -26,7 +29,10 @@ public class MacdSignalDetector {
      * @param code 股票代码
      * @return 信号列表
      */
-    public static List<Signal> detectSignals(List<StockDailyInfoVO> data, String code) {
+    @Override
+    public List<Signal> detectSignals(List<StockDailyInfoVO> data, String code) {
+
+        MacdCalculator.calculate(data);
         List<Signal> signals = new ArrayList<>();
 
         if (data == null || data.size() < 2) return signals;

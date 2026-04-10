@@ -7,7 +7,9 @@ import com.diboot.core.entity.AbstractEntity;
 import com.diboot.core.util.BeanUtils;
 import com.xiw.kuwei.calculator.MaCalculator;
 import com.xiw.kuwei.calculator.MacdCalculator;
+import com.xiw.kuwei.chart.BackTestChart;
 import com.xiw.kuwei.chart.ThsTradeIndexChart;
+import com.xiw.kuwei.constant.DetectorEnum;
 import com.xiw.kuwei.detector.*;
 import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.entity.stock.StockInfo;
@@ -32,10 +34,7 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
@@ -223,11 +222,23 @@ public class StockCommonServiceImpl implements StockCommonService {
 
     }
 
+    private @NotNull StockInfoVO getBaseStockInfoByCode(String code) {
+        StockInfo stockInfo = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).one();
+        if (stockInfo == null) {
+            throw new NullPointerException("stockInfo is null");
+        }
+        return doGetBaseStockInfo(stockInfo);
+
+    }
     private @NotNull StockInfoVO getBaseStockInfo(String stockId) {
         StockInfo stockInfo = stockInfoService.getEntity(stockId);
         if (stockInfo == null) {
             throw new NullPointerException("stockInfo is null");
         }
+        return doGetBaseStockInfo(stockInfo);
+    }
+
+    private @NotNull StockInfoVO doGetBaseStockInfo(StockInfo stockInfo) {
         StockInfoVO stockInfoVO = new StockInfoVO();
         BeanUtils.copyProperties(stockInfo, stockInfoVO);
 
@@ -252,37 +263,6 @@ public class StockCommonServiceImpl implements StockCommonService {
         return stockInfoVO;
     }
 
-    @Override
-    public void macdSignal(String stockId) {
-        StockInfoVO stockInfoVO = getBaseStockInfo(stockId);
-        // 2. 计算 MACD 指标
-        List<StockDailyInfoVO> voList = stockInfoVO.getStockDailyInfoVOList();
-        MacdCalculator.calculate(voList);
-
-        // 3. 👇 使用新的信号检测器（忽略背离识别器）
-        String code = stockInfoVO.getCode();
-        String name = stockInfoVO.getName();
-        List<Signal> signals = MacdSignalDetector.detectSignals(voList, code);
-
-        // 4. 打印信号
-        log.info("==== {}-{} MACD 交易信号 ====", code, name);
-        for (Signal s : signals) {
-            log.info(s.toString());
-        }
-
-        List<BackTestRecord> backTestRecordList = BackTestEngine.runBackTest(signals, new BigDecimal("1000000"), code);
-        log.info("==== {}-{} MACD 回测交易信息 ====", code, name);
-        for (BackTestRecord backTestRecord : backTestRecordList) {
-            log.info(backTestRecord.toString());
-        }
-
-        // JFreeChart chart = AssetChart.createChart(backTestRecordList);
-        // try {
-        //     ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format("{}-{}_asset.png", code, name)), chart, 3000, 1800);
-        // } catch (IOException e) {
-        //     throw new LogicalException(e);
-        // }
-    }
 
     @Override
     public void macdSignalByCode(String code) {
@@ -299,6 +279,84 @@ public class StockCommonServiceImpl implements StockCommonService {
         if (stockId != null) {
             macdSignal(stockId);
         }
+    }
+
+    @Override
+    public void macdSignal(String stockId) {
+        StockInfoVO stockInfoVO = getBaseStockInfo(stockId);
+        doMacdSignal(stockInfoVO);
+    }
+
+    private void doMacdSignal(StockInfoVO stockInfoVO) {
+        // 2. 计算 MACD 指标
+        List<StockDailyInfoVO> voList = stockInfoVO.getStockDailyInfoVOList();
+        MacdCalculator.calculate(voList);
+
+        // 3. 👇 使用新的信号检测器（忽略背离识别器）
+        String code = stockInfoVO.getCode();
+        String name = stockInfoVO.getName();
+        List<Signal> signals = DetectorFactory.getDetector(DetectorEnum.MACD.getType()).detectSignals(voList, code);
+
+        // 4. 打印信号
+        log.info("==== {}-{} MACD 交易信号 ====", code, name);
+        for (Signal s : signals) {
+            log.info(s.toString());
+        }
+
+        List<BackTestRecord> backTestRecordList = BackTestEngine.runBackTest(signals, new BigDecimal("1000000"), code);
+        log.info("==== {}-{} MACD 回测交易信息 ====", code, name);
+        for (BackTestRecord backTestRecord : backTestRecordList) {
+            log.info(backTestRecord.toString());
+        }
+
+        // 和上证指数做对比
+        StockInfoVO sh000001 = getBaseStockInfoByCode("sh000001");
+        Map<String, List<StockDailyInfoVO>> benchmarkMap = new HashMap<>();
+        benchmarkMap.put(sh000001.getCode(), sh000001.getStockDailyInfoVOList());
+        benchmarkMap.put(stockInfoVO.getCode(), stockInfoVO.getStockDailyInfoVOList());
+        JFreeChart chart = BackTestChart.createComparisonChart(backTestRecordList, benchmarkMap, null);
+        try {
+            ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format("{}-{}_asset.png", code, name)), chart, 3000, 1800);
+        } catch (IOException e) {
+            throw new LogicalException(e);
+        }
+    }
+
+    @Override
+    public void multiTest(String code) {
+
+        if (code == null) {
+            throw new NullPointerException("code is null");
+        }
+        List<StockInfo> list = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).list();
+        if (CollUtil.isEmpty(list)) {
+            initStockInfo(code, "自动初始化");
+        }
+
+        StockInfoVO stockInfoVO = getBaseStockInfoByCode(code);
+        List<StockDailyInfoVO> voList = stockInfoVO.getStockDailyInfoVOList();
+
+        DetectorEnum[] values = DetectorEnum.values();
+        Map<String, List<Signal>> signalMap = new HashMap<>();
+        for (DetectorEnum value : values) {
+            signalMap.put(value.getName(), DetectorFactory.getDetector(value.getType())
+                    .detectSignals(voList, code));
+
+        }
+
+        Map<String, List<BackTestRecord>> resultMap = BackTestEngine.runMultiStrategyBackTest(signalMap, new BigDecimal("1000000"), code);
+        // 和上证指数做对比
+        StockInfoVO sh000001 = getBaseStockInfoByCode("sh000001");
+        Map<String, List<StockDailyInfoVO>> benchmarkMap = new HashMap<>();
+        benchmarkMap.put(sh000001.getCode(), sh000001.getStockDailyInfoVOList());
+        benchmarkMap.put(stockInfoVO.getCode(), stockInfoVO.getStockDailyInfoVOList());
+        JFreeChart chart = BackTestChart.createMultiStrategyComparisonChart(resultMap, benchmarkMap, null);
+        try {
+            ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format("{}-{}多策略收益对比.png", code, stockInfoVO.getName())), chart, 3000, 1800);
+        } catch (IOException e) {
+            throw new LogicalException(e);
+        }
+
     }
 
 }

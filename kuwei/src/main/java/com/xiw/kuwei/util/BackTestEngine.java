@@ -7,7 +7,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * MACD 信号回测引擎
@@ -140,6 +142,32 @@ public class BackTestEngine {
         record.setTotalAsset(totalAsset);
         record.setTradeAmount(BigDecimal.ZERO); // 外部设置
         return record;
+    }
+
+
+    /**
+     * 批量运行多个策略的回测
+     *
+     * @param strategySignals 策略名称 → 信号列表
+     * @param initialCash     初始资金（所有策略共用同一初始资金，独立运行）
+     * @param code            股票代码（用于过滤，可留空）
+     * @return 策略名称 → 回测记录列表
+     */
+    public static Map<String, List<BackTestRecord>> runMultiStrategyBackTest(
+            Map<String, List<Signal>> strategySignals,
+            BigDecimal initialCash,
+            String code) {
+
+        Map<String, List<BackTestRecord>> results = new LinkedHashMap<>();
+
+        for (Map.Entry<String, List<Signal>> entry : strategySignals.entrySet()) {
+            String strategyName = entry.getKey();
+            List<Signal> signals = entry.getValue();
+            List<BackTestRecord> records = runBackTest(signals, initialCash, code);
+            results.put(strategyName, records);
+        }
+
+        return results;
     }
 
 }

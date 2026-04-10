@@ -21,4 +21,6 @@ public interface StockCommonService {
 
     void macdSignalByCode(String code);
 
+    void multiTest(String code);
+
 }
