@@ -59,14 +59,19 @@ public class SinaFetcher extends abstractFetcher {
 
     @Override
     public List<StockDailyInfo> getStockDailyInfo(StockInfo stockInfo) {
+        return getStockDailyInfo(stockInfo, DEFAULT_DAY_LENGTH);
+    }
+
+    @Override
+    public List<StockDailyInfo> getStockDailyInfo(StockInfo stockInfo, int days) {
         List<StockDailyInfo> stockDailyInfo;
         log.info("尝试获取股票数据");
-        stockDailyInfo = doGetStockDailyInfo(stockInfo);
+        stockDailyInfo = doGetStockDailyInfo(stockInfo, days);
         if (!CollUtil.isEmpty(stockDailyInfo)) {
             return stockDailyInfo;
         }
         log.info("尝试获取板块数据");
-        stockDailyInfo = getPlateDailyInfo(stockInfo);
+        stockDailyInfo = getPlateDailyInfo(stockInfo, days);
         if (!CollUtil.isEmpty(stockDailyInfo)) {
             return stockDailyInfo;
         }
@@ -74,7 +79,7 @@ public class SinaFetcher extends abstractFetcher {
         return stockDailyInfo;
     }
 
-    private List<StockDailyInfo> doGetStockDailyInfo(StockInfo stockInfo) {
+    private List<StockDailyInfo> doGetStockDailyInfo(StockInfo stockInfo, int days) {
         if (stockInfo == null) {
             throw new NullPointerException("stockInfo is null");
         }
@@ -83,7 +88,7 @@ public class SinaFetcher extends abstractFetcher {
             throw new NullPointerException("code is null");
         }
         String stockId = stockInfo.getId();
-        String formattedUrl = CharSequenceUtil.format(API_HISTORY_INFO_TEMPLATE, code, DEFAULT_DAY_LENGTH);
+        String formattedUrl = CharSequenceUtil.format(API_HISTORY_INFO_TEMPLATE, code, days);
         System.out.println(formattedUrl);
         String response = HttpUtil.get(formattedUrl);
         if (StrUtil.isBlank(response) || "null".equals(response)) {
@@ -98,7 +103,7 @@ public class SinaFetcher extends abstractFetcher {
         return stockDailyInfos;
     }
 
-    private List<StockDailyInfo> getPlateDailyInfo(StockInfo stockInfo) {
+    private List<StockDailyInfo> getPlateDailyInfo(StockInfo stockInfo, int days) {
         if (stockInfo == null) {
             throw new NullPointerException("stockInfo is null");
         }
@@ -107,7 +112,7 @@ public class SinaFetcher extends abstractFetcher {
             throw new NullPointerException("code is null");
         }
         String stockId = stockInfo.getId();
-        String formattedUrl = CharSequenceUtil.format(API_HISTORY_PLATE_INFO_TEMPLATE, code, DEFAULT_TRANSACTION_MINUTE, System.currentTimeMillis(), code, DEFAULT_TRANSACTION_MINUTE, DEFAULT_DAY_LENGTH);
+        String formattedUrl = CharSequenceUtil.format(API_HISTORY_PLATE_INFO_TEMPLATE, code, days, System.currentTimeMillis(), code, DEFAULT_TRANSACTION_MINUTE, DEFAULT_DAY_LENGTH);
         String response = HttpUtil.get(formattedUrl);
         JSONArray jsonArray = new JSONArray();
         try {

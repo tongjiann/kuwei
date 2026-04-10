@@ -10,6 +10,8 @@ import lombok.*;
 import lombok.experimental.Accessors;
 import org.hibernate.validator.constraints.Length;
 
+import java.time.LocalDate;
+
 /**
  * 股票基础信息 Entity 定义
  *
@@ -83,4 +85,10 @@ public class StockInfo extends BaseModel {
     @BindQuery(comparison = Comparison.LIKE)
     @TableField(value = "`source`")
     private String source;
+
+    /**
+     * 最新数据更新时间
+     */
+    @TableField()
+    private LocalDate latestDataFreshTime;
 }

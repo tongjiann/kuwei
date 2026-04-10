@@ -36,7 +36,7 @@ diboot:
   i18n: false #启用国际化/
   file:
     # 文件存储路径（本地存储方式）
-    storage-directory: /temp/playground
+    storage-directory: //Users/xiwang/Desktop/charts/
   iam:
     # token-expires-minutes: 60
     # Shiro的匿名urls

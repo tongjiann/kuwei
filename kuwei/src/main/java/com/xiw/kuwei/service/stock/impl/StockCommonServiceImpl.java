@@ -27,13 +27,16 @@ import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
 import org.jfree.chart.ChartUtils;
 import org.jfree.chart.JFreeChart;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
@@ -41,6 +44,9 @@ import java.util.stream.Collectors;
 @Slf4j
 @Service
 public class StockCommonServiceImpl implements StockCommonService {
+
+    @Value("${diboot.file.storage-directory}")
+    private String resourcesDirPath;
 
     private static final BigDecimal BD_100 = new BigDecimal("100");
 
@@ -96,7 +102,28 @@ public class StockCommonServiceImpl implements StockCommonService {
     }
 
     @Override
+    @Transactional
+    public void updateStockInfo() {
+        List<StockInfo> stockInfoList = stockInfoService.lambdaQuery().list();
+        List<StockDailyInfo> stockDailyInfoList = stockDailyInfoService.lambdaQuery().list();
+        Map<String, LocalDate> stockIdLastDataFreshTimeMap = stockDailyInfoList.stream()
+                .filter(e -> e.getStockId() != null)
+                .collect(Collectors.toMap(StockDailyInfo::getStockId, StockDailyInfo::getDate, (x, y) -> {
+                    if (x.isAfter(y)) {
+                        return x;
+                    }
+                    return y;
+                }));
+        stockInfoList.forEach(stockInfo -> {
+            stockInfo.setLatestDataFreshTime(stockIdLastDataFreshTimeMap.get(stockInfo.getId()));
+        });
+        stockInfoService.updateEntities(stockInfoList);
+    }
+
+    @Override
+    @Transactional
     public void updateStockDailyInfo() {
+        log.info("开始更新每日信息");
         List<StockDailyInfo> list = stockDailyInfoService.lambdaQuery().list();
         Map<String, List<StockDailyInfo>> stockInfoMap = list.stream()
                 .collect(Collectors.groupingBy(StockDailyInfo::getStockId));
@@ -181,7 +208,7 @@ public class StockCommonServiceImpl implements StockCommonService {
         JFreeChart chart = ThsTradeIndexChart.createChart(stockInfoVO, title);
 
         try {
-            ChartUtils.saveChartAsPNG(new File(StrUtil.format(title + ".png")), chart, 3000, 1800);
+            ChartUtils.saveChartAsPNG(new File(StrUtil.format(resourcesDirPath + title + ".png")), chart, 3000, 1800);
         } catch (IOException e) {
             throw new LogicalException(e);
         }
@@ -272,7 +299,7 @@ public class StockCommonServiceImpl implements StockCommonService {
         }
         List<StockInfo> list = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).list();
         if (CollUtil.isEmpty(list)) {
-            stockId = initStockInfo(code, "自动初始化");
+            stockId = initStockInfo(code);
         } else {
             stockId = list.get(0).getId();
         }
@@ -316,7 +343,7 @@ public class StockCommonServiceImpl implements StockCommonService {
         benchmarkMap.put(stockInfoVO.getCode(), stockInfoVO.getStockDailyInfoVOList());
         JFreeChart chart = BackTestChart.createComparisonChart(backTestRecordList, benchmarkMap, null);
         try {
-            ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format("{}-{}_asset.png", code, name)), chart, 3000, 1800);
+            ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format(resourcesDirPath + "{}-{}_asset.png", code, name)), chart, 3000, 1800);
         } catch (IOException e) {
             throw new LogicalException(e);
         }
@@ -330,7 +357,7 @@ public class StockCommonServiceImpl implements StockCommonService {
         }
         List<StockInfo> list = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).list();
         if (CollUtil.isEmpty(list)) {
-            initStockInfo(code, "自动初始化");
+            initStockInfo(code);
         }
 
         StockInfoVO stockInfoVO = getBaseStockInfoByCode(code);
@@ -352,11 +379,91 @@ public class StockCommonServiceImpl implements StockCommonService {
         benchmarkMap.put(stockInfoVO.getCode(), stockInfoVO.getStockDailyInfoVOList());
         JFreeChart chart = BackTestChart.createMultiStrategyComparisonChart(resultMap, benchmarkMap, null);
         try {
-            ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format("{}-{}多策略收益对比.png", code, stockInfoVO.getName())), chart, 3000, 1800);
+            ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format(resourcesDirPath + "{}-{}多策略收益对比.png", code, stockInfoVO.getName())), chart, 3000, 1800);
         } catch (IOException e) {
             throw new LogicalException(e);
         }
 
+    }
+
+    private String initStockInfo(String code) {
+        return initStockInfo(code, code);
+    }
+
+    @Override
+    @Transactional
+    public void syncDailyInfo() {
+        log.info("开始同步股票信息");
+        // 1. 获取所有需要同步的股票
+        List<StockInfo> list = stockInfoService.lambdaQuery().list();
+        if (CollUtil.isEmpty(list)) {
+            return;
+        }
+
+        // 2. 逐只股票处理（可考虑并行优化，但需注意数据库连接和接口限流）
+        for (StockInfo stockInfo : list) {
+            LocalDate latestFreshTime = stockInfo.getLatestDataFreshTime();
+            LocalDate today = LocalDate.now();
+
+            // 2.1 计算需要同步的天数
+            int daysToSync;
+            if (latestFreshTime == null) {
+                // 首次同步：默认拉取最近30天数据（可根据业务调整）
+                daysToSync = 30;
+            } else {
+                // 增量同步：从 latestFreshTime 的下一天开始，到今日为止
+                LocalDate startDate = latestFreshTime.plusDays(1);
+                if (startDate.isAfter(today)) {
+                    // 数据已是最新，无需同步
+                    continue;
+                }
+                daysToSync = (int) ChronoUnit.DAYS.between(startDate, today) + 1;
+            }
+            abstractFetcher fetcher = FetcherManager.getFetcher();
+            // 2.2 调用 fetcher 获取数据
+            List<StockDailyInfo> dailyInfoList;
+            String code = stockInfo.getCode();
+            String name = stockInfo.getName();
+            List<StockDailyInfo> toSaveList;
+            try {
+                dailyInfoList = fetcher.getStockDailyInfo(stockInfo, daysToSync);
+                toSaveList = dailyInfoList.stream()
+                        .filter(e -> e.getDate().isAfter(latestFreshTime))
+                        .toList();
+            } catch (Exception e) {
+                log.error("同步股票  {}-{} 每日数据失败，跳过该股票", name, code, e);
+                continue;
+            }
+
+            if (CollUtil.isEmpty(toSaveList)) {
+                log.info("股票  {}-{} 无新增数据", name, code);
+                continue;
+            }
+
+
+            // 2.3 批量保存或更新每日数据（假设使用 MyBatis-Plus 的 saveOrUpdateBatch）
+            boolean saved = stockDailyInfoService.createEntities(toSaveList);
+            if (!saved) {
+                log.error("保存股票 {}-{} 每日数据失败", name, code);
+                continue;
+            } else {
+                log.error("保存股票 {}-{} 每日数据成功，共新增{}条数据", name, code, toSaveList.size());
+            }
+
+            // 2.4 更新 stockInfo 的 latestDataFreshTime 为本次同步的最大日期
+            LocalDate maxDate = dailyInfoList.stream()
+                    .map(StockDailyInfo::getDate)
+                    .max(LocalDate::compareTo)
+                    .orElse(null);
+            if (maxDate != null && (latestFreshTime == null || maxDate.isAfter(latestFreshTime))) {
+                stockInfo.setLatestDataFreshTime(maxDate);
+                boolean updated = stockInfoService.updateEntity(stockInfo);
+                if (!updated) {
+                    log.warn("更新股票  {}-{} 的最新数据时间失败，但不影响数据同步", name, code);
+                }
+            }
+        }
+        updateStockDailyInfo();
     }
 
 }

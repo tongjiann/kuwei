@@ -6,6 +6,8 @@ public interface StockCommonService {
 
     String initStockInfo(String code, String name);
 
+    void updateStockInfo();
+
     void updateStockDailyInfo();
 
 
@@ -22,5 +24,7 @@ public interface StockCommonService {
     void macdSignalByCode(String code);
 
     void multiTest(String code);
+
+    void syncDailyInfo();
 
 }

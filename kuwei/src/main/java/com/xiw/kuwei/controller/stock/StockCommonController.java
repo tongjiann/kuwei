@@ -4,7 +4,6 @@ package com.xiw.kuwei.controller.stock;
 import com.diboot.core.controller.BaseController;
 import com.diboot.core.vo.JsonResult;
 import com.xiw.kuwei.service.stock.StockCommonService;
-import com.xiw.kuwei.service.stock.StockInfoService;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
@@ -28,13 +27,17 @@ public class StockCommonController extends BaseController {
     @Resource
     private StockCommonService stockCommonService;
 
-    @Resource
-    private StockInfoService stockInfoService;
-
     @RequestMapping("init-stock-info")
     public JsonResult<?> initStockInfo(@RequestParam String code, @RequestParam String name) {
 
         stockCommonService.initStockInfo(code, name);
+        return JsonResult.OK();
+    }
+
+    @RequestMapping("update-stock-info")
+    public JsonResult<?> updateStockInfo() {
+
+        stockCommonService.updateStockInfo();
         return JsonResult.OK();
     }
 
@@ -96,6 +99,12 @@ public class StockCommonController extends BaseController {
     @RequestMapping("multi-test")
     public JsonResult<?> multiTest(@RequestParam String code) {
         stockCommonService.multiTest(code);
+        return JsonResult.OK();
+    }
+
+    @RequestMapping("sync-daily-info")
+    public JsonResult<?> syncDailyInfo() {
+        stockCommonService.syncDailyInfo();
         return JsonResult.OK();
     }
 

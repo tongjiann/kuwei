@@ -12,6 +12,8 @@ public abstract class abstractFetcher {
 
     public abstract List<StockDailyInfo> getStockDailyInfo(StockInfo stockInfo);
 
+    public abstract List<StockDailyInfo> getStockDailyInfo(StockInfo stockInfo, int days);
+
     public StockInfo getStockInfo(String code, String name) {
         StockInfo stockInfo = doGetStockInfo(code, name);
         if (platform == null) {
