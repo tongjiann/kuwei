@@ -195,13 +195,7 @@ public class ThsTradeIndexChart {
 
             if (list.get(i).getMaInfo() == null) continue;
 
-            BigDecimal val = switch (n) {
-                case 5 -> list.get(i).getMaInfo().getMa5();
-                case 10 -> list.get(i).getMaInfo().getMa10();
-                case 20 -> list.get(i).getMaInfo().getMa20();
-                case 30 -> list.get(i).getMaInfo().getMa30();
-                default -> null;
-            };
+            BigDecimal val = list.get(i).getMaInfo().get(n);
 
             if (val != null) {
                 s.add(i, val.doubleValue());

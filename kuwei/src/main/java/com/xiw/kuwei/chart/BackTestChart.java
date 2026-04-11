@@ -1,6 +1,7 @@
 package com.xiw.kuwei.chart;
 
-import com.xiw.kuwei.detector.BackTestRecord;
+import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
+import com.xiw.kuwei.vo.backtest.PortfolioDailyRecord;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
@@ -22,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 import static com.xiw.kuwei.chart.ThsTradeIndexChart.applyDarkTheme;
 
@@ -60,7 +62,7 @@ public class BackTestChart {
      * @param title        图表标题
      * @return JFreeChart 对象
      */
-    public static JFreeChart createComparisonChart(List<BackTestRecord> records,
+    public static JFreeChart createComparisonChart(List<PortfolioDailyRecord> records,
                                                    Map<String, List<StockDailyInfoVO>> benchmarkMap,
                                                    String title) {
         if (records == null || records.isEmpty()) {
@@ -69,22 +71,24 @@ public class BackTestChart {
 
         // 1. 提取回测资产曲线（日期 → 总资产）
         Map<LocalDate, BigDecimal> assetMap = new LinkedHashMap<>();
-        for (BackTestRecord record : records) {
-            if (record.getDateTime() != null) {
-                LocalDate date = record.getDateTime().toLocalDate();
+        for (PortfolioDailyRecord record : records) {
+            if (record.getDate() != null) {
+                LocalDate date = record.getDate();
                 assetMap.put(date, record.getTotalAsset());
             }
         }
 
         // 2. 确定初始资产（第一个非零值）
         BigDecimal initialAsset = null;
-        for (BackTestRecord record : records) {
+        for (PortfolioDailyRecord record : records) {
             if (record.getTotalAsset() != null && record.getTotalAsset().compareTo(BigDecimal.ZERO) > 0) {
                 initialAsset = record.getTotalAsset();
                 break;
             }
         }
-        if (initialAsset == null) initialAsset = BigDecimal.ONE;
+        if (initialAsset == null) {
+            initialAsset = BigDecimal.ONE;
+        }
 
         // 3. 构建基准数据日期序列（合并所有日期的并集，确保对齐）
         TreeSet<LocalDate> allDates = new TreeSet<>();
@@ -107,7 +111,7 @@ public class BackTestChart {
             BigDecimal asset = assetMap.getOrDefault(date, lastAsset);
             if (asset != null) {
                 double returnPct = asset.subtract(initialAsset)
-                        .divide(initialAsset, 4, RoundingMode.HALF_UP)
+                        .divide(initialAsset, 4, RoundingMode.HALF_EVEN)
                         .multiply(BigDecimal.valueOf(100))
                         .doubleValue();
                 assetSeries.addOrUpdate(new Day(date.getDayOfMonth(), date.getMonthValue(), date.getYear()), returnPct);
@@ -146,7 +150,7 @@ public class BackTestChart {
                 BigDecimal price = priceMap.getOrDefault(date, lastPrice);
                 if (price != null) {
                     double returnPct = price.subtract(initialPrice)
-                            .divide(initialPrice, 4, RoundingMode.HALF_UP)
+                            .divide(initialPrice, 4, RoundingMode.HALF_EVEN)
                             .multiply(BigDecimal.valueOf(100))
                             .doubleValue();
                     benchSeries.addOrUpdate(new Day(date.getDayOfMonth(), date.getMonthValue(), date.getYear()), returnPct);
@@ -211,13 +215,13 @@ public class BackTestChart {
     /**
      * 创建多策略对比图表（与基准股票对比）
      *
-     * @param strategyRecordListMap 策略名称 → 回测记录列表
+     * @param portfolioBackTestResultList 策略名称 → 回测记录列表
      * @param benchmarkMap          基准股票数据（名称 → 日线数据）
      * @param title                 图表标题
      * @return JFreeChart 对象
      */
     public static JFreeChart createMultiStrategyComparisonChart(
-            Map<String, List<BackTestRecord>> strategyRecordListMap,
+            List<PortfolioBackTestResult> portfolioBackTestResultList,
             Map<String, List<StockDailyInfoVO>> benchmarkMap,
             String title) {
 
@@ -226,16 +230,18 @@ public class BackTestChart {
         Map<String, Map<LocalDate, BigDecimal>> strategyAssetMaps = new LinkedHashMap<>();
         Map<String, BigDecimal> strategyInitialAssets = new LinkedHashMap<>();
 
-        for (Map.Entry<String, List<BackTestRecord>> entry : strategyRecordListMap.entrySet()) {
+        Map<String, List<PortfolioDailyRecord>> map = portfolioBackTestResultList.stream()
+                .collect(Collectors.toMap(PortfolioBackTestResult::getStrategy, PortfolioBackTestResult::getPortfolioDailyRecordList));
+        for (Map.Entry<String, List<PortfolioDailyRecord>> entry : map.entrySet()) {
             String strategyName = entry.getKey();
-            List<BackTestRecord> records = entry.getValue();
+            List<PortfolioDailyRecord> records = entry.getValue();
             if (records.isEmpty()) continue;
 
             Map<LocalDate, BigDecimal> assetMap = new LinkedHashMap<>();
             BigDecimal initialAsset = null;
-            for (BackTestRecord record : records) {
-                if (record.getDateTime() != null) {
-                    LocalDate date = record.getDateTime().toLocalDate();
+            for (PortfolioDailyRecord record : records) {
+                if (record.getDate() != null) {
+                    LocalDate date = record.getDate();
                     allDates.add(date);
                     assetMap.put(date, record.getTotalAsset());
                     if (initialAsset == null && record.getTotalAsset() != null
@@ -273,7 +279,7 @@ public class BackTestChart {
                 BigDecimal asset = assetMap.getOrDefault(date, lastAsset);
                 if (asset != null) {
                     double returnPct = asset.subtract(initialAsset)
-                            .divide(initialAsset, 4, RoundingMode.HALF_UP)
+                            .divide(initialAsset, 4, RoundingMode.HALF_EVEN)
                             .multiply(BigDecimal.valueOf(100))
                             .doubleValue();
                     series.addOrUpdate(new Day(date.getDayOfMonth(), date.getMonthValue(), date.getYear()), returnPct);
@@ -312,7 +318,7 @@ public class BackTestChart {
                 BigDecimal price = priceMap.getOrDefault(date, lastPrice);
                 if (price != null) {
                     double returnPct = price.subtract(initialPrice)
-                            .divide(initialPrice, 4, RoundingMode.HALF_UP)
+                            .divide(initialPrice, 4, RoundingMode.HALF_EVEN)
                             .multiply(BigDecimal.valueOf(100))
                             .doubleValue();
                     benchSeries.addOrUpdate(new Day(date.getDayOfMonth(), date.getMonthValue(), date.getYear()), returnPct);

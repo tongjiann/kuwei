@@ -1,6 +1,9 @@
 package com.xiw.kuwei.service.stock;
 
+import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
+
+import java.util.List;
 
 public interface StockCommonService {
 
@@ -10,20 +13,13 @@ public interface StockCommonService {
 
     void updateStockDailyInfo();
 
-
     StockInfoVO getExtraStockInfo(String stockId, int days);
 
     void createChartByStockInfo(StockInfoVO stockId);
 
     void createCharts(int days);
 
-    void macdDivergence(String stockId);
-
-    void macdSignal(String stockId);
-
-    void macdSignalByCode(String code);
-
-    void multiTest(String code);
+    List<PortfolioBackTestResult> multiTest(String code);
 
     void syncDailyInfo();
 

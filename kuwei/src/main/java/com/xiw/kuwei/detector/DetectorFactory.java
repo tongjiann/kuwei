@@ -7,22 +7,20 @@ import java.util.Map;
 
 public class DetectorFactory {
 
-    private static final Map<Integer, Class<? extends DetectorInterface>> classMap = new HashMap<>();
+    private static final Map<String, DetectorInterface> INSTANCE_MAP = new HashMap<>();
 
     static {
         for (DetectorEnum value : DetectorEnum.values()) {
-            classMap.put(value.getType(), value.getClazz());
+            INSTANCE_MAP.put(value.getName(), value.getDetectorInterface());
         }
     }
 
-    public static DetectorInterface getDetector(int type) {
-        Class<? extends DetectorInterface> clazz = classMap.get(type);
-        if (clazz == null) throw new NullPointerException();
-        try {
-            return clazz.getDeclaredConstructor().newInstance();
-        } catch (Exception e) {
-            throw new RuntimeException("Failed to create detector", e);
+    public static DetectorInterface getDetector(String name) {
+        DetectorInterface instance = INSTANCE_MAP.get(name);
+        if (instance == null) {
+            throw new NullPointerException();
         }
+        return instance;
     }
 
 }

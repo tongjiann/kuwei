@@ -1,4 +1,4 @@
-package com.xiw.kuwei.detector;
+package com.xiw.kuwei.vo.backtest;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -54,9 +54,9 @@ public class Signal {
     public String toString() {
         String direction = sign == 0 ? "买" : "卖";
         String formattedDateTime = dateTime != null ? dateTime.format(DATE_TIME_FORMATTER) : "null";
-        String formattedPrice = price != null ? price.setScale(2, RoundingMode.HALF_UP).toString() : "null";
+        String formattedPrice = price != null ? price.setScale(2, RoundingMode.HALF_EVEN).toString() : "null";
         String strengthPercent = strength != null
-                ? strength.multiply(new BigDecimal("100")).setScale(1, RoundingMode.HALF_UP) + "%"
+                ? strength.multiply(new BigDecimal("100")).setScale(1, RoundingMode.HALF_EVEN) + "%"
                 : "null";
 
         return String.format("[%s] %s %s | 价格=%s | 强度=%s | 说明=%s",

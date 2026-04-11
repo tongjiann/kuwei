@@ -5,12 +5,9 @@ import cn.hutool.core.text.CharSequenceUtil;
 import cn.hutool.core.util.StrUtil;
 import com.diboot.core.entity.AbstractEntity;
 import com.diboot.core.util.BeanUtils;
-import com.xiw.kuwei.calculator.MaCalculator;
 import com.xiw.kuwei.calculator.MacdCalculator;
 import com.xiw.kuwei.chart.BackTestChart;
 import com.xiw.kuwei.chart.ThsTradeIndexChart;
-import com.xiw.kuwei.constant.DetectorEnum;
-import com.xiw.kuwei.detector.*;
 import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.entity.stock.StockInfo;
 import com.xiw.kuwei.exception.LogicalException;
@@ -19,7 +16,8 @@ import com.xiw.kuwei.helper.fetcher.abstractFetcher;
 import com.xiw.kuwei.service.stock.StockCommonService;
 import com.xiw.kuwei.service.stock.StockDailyInfoService;
 import com.xiw.kuwei.service.stock.StockInfoService;
-import com.xiw.kuwei.util.BackTestEngine;
+import com.xiw.kuwei.util.PortfolioBackTestEngine;
+import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
 import jakarta.annotation.Resource;
@@ -45,11 +43,10 @@ import java.util.stream.Collectors;
 @Service
 public class StockCommonServiceImpl implements StockCommonService {
 
-    @Value("${diboot.file.storage-directory}")
-    private String resourcesDirPath;
-
     private static final BigDecimal BD_100 = new BigDecimal("100");
 
+    @Value("${diboot.file.storage-directory}")
+    private String resourcesDirPath;
 
     @Resource
     private StockInfoService stockInfoService;
@@ -184,7 +181,6 @@ public class StockCommonServiceImpl implements StockCommonService {
         }).toList();
 
         MacdCalculator.calculate(voList);
-        MaCalculator.calculate(voList);
         int right = voList.size();
         int left = Integer.max(0, right - days);
         stockInfoVO.setStockDailyInfoVOList(voList.subList(left, right));
@@ -225,30 +221,6 @@ public class StockCommonServiceImpl implements StockCommonService {
         });
     }
 
-    @Override
-    public void macdDivergence(String stockId) {
-        StockInfoVO stockInfoVO = getBaseStockInfo(stockId);
-
-        List<StockDailyInfoVO> voList = stockInfoVO.getStockDailyInfoVOList();
-        // 2. 计算 MACD 指标
-        MacdCalculator.calculate(voList);
-
-        // 3. 识别背离
-        DivergenceDetector.DivergenceDetectionResult divergences = DivergenceDetector.detectAll(voList);
-
-        // 4. 打印识别结果
-        log.info("=== 背离识别结果 ===");
-        log.info("顶背离数量: " + divergences.topDivergences.size());
-        for (DivergenceResult d : divergences.topDivergences) {
-            log.info(d.toString());
-        }
-        log.info("底背离数量: " + divergences.bottomDivergences.size());
-        for (DivergenceResult d : divergences.bottomDivergences) {
-            log.info(d.toString());
-        }
-
-    }
-
     private @NotNull StockInfoVO getBaseStockInfoByCode(String code) {
         StockInfo stockInfo = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).one();
         if (stockInfo == null) {
@@ -257,6 +229,7 @@ public class StockCommonServiceImpl implements StockCommonService {
         return doGetBaseStockInfo(stockInfo);
 
     }
+
     private @NotNull StockInfoVO getBaseStockInfo(String stockId) {
         StockInfo stockInfo = stockInfoService.getEntity(stockId);
         if (stockInfo == null) {
@@ -290,104 +263,83 @@ public class StockCommonServiceImpl implements StockCommonService {
         return stockInfoVO;
     }
 
-
     @Override
-    public void macdSignalByCode(String code) {
-        String stockId;
-        if (code == null) {
-            throw new NullPointerException("code is null");
-        }
-        List<StockInfo> list = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).list();
-        if (CollUtil.isEmpty(list)) {
-            stockId = initStockInfo(code);
-        } else {
-            stockId = list.get(0).getId();
-        }
-        if (stockId != null) {
-            macdSignal(stockId);
-        }
-    }
-
-    @Override
-    public void macdSignal(String stockId) {
-        StockInfoVO stockInfoVO = getBaseStockInfo(stockId);
-        doMacdSignal(stockInfoVO);
-    }
-
-    private void doMacdSignal(StockInfoVO stockInfoVO) {
-        // 2. 计算 MACD 指标
-        List<StockDailyInfoVO> voList = stockInfoVO.getStockDailyInfoVOList();
-        MacdCalculator.calculate(voList);
-
-        // 3. 👇 使用新的信号检测器（忽略背离识别器）
-        String code = stockInfoVO.getCode();
-        String name = stockInfoVO.getName();
-        List<Signal> signals = DetectorFactory.getDetector(DetectorEnum.MACD.getType()).detectSignals(voList, code);
-
-        // 4. 打印信号
-        log.info("==== {}-{} MACD 交易信号 ====", code, name);
-        for (Signal s : signals) {
-            log.info(s.toString());
-        }
-
-        List<BackTestRecord> backTestRecordList = BackTestEngine.runBackTest(signals, new BigDecimal("1000000"), code);
-        log.info("==== {}-{} MACD 回测交易信息 ====", code, name);
-        for (BackTestRecord backTestRecord : backTestRecordList) {
-            log.info(backTestRecord.toString());
-        }
-
-        // 和上证指数做对比
-        StockInfoVO sh000001 = getBaseStockInfoByCode("sh000001");
-        Map<String, List<StockDailyInfoVO>> benchmarkMap = new HashMap<>();
-        benchmarkMap.put(sh000001.getCode(), sh000001.getStockDailyInfoVOList());
-        benchmarkMap.put(stockInfoVO.getCode(), stockInfoVO.getStockDailyInfoVOList());
-        JFreeChart chart = BackTestChart.createComparisonChart(backTestRecordList, benchmarkMap, null);
-        try {
-            ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format(resourcesDirPath + "{}-{}_asset.png", code, name)), chart, 3000, 1800);
-        } catch (IOException e) {
-            throw new LogicalException(e);
-        }
-    }
-
-    @Override
-    public void multiTest(String code) {
+    public List<PortfolioBackTestResult> multiTest(String code) {
 
         if (code == null) {
-            throw new NullPointerException("code is null");
+            List<StockInfo> stockInfoList = stockInfoService.lambdaQuery().list();
+            if (CollUtil.isEmpty(stockInfoList)) {
+                return Collections.emptyList();
+            }
+
+            return stockInfoList.stream()
+                    .map(StockInfo::getCode)
+                    .filter(Objects::nonNull)
+                    .flatMap(c -> multiTest(c).stream())
+                    .toList();
         }
-        List<StockInfo> list = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).list();
-        if (CollUtil.isEmpty(list)) {
+
+        // ================= 初始化 =================
+        if (CollUtil.isEmpty(
+                stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).list())) {
             initStockInfo(code);
         }
 
         StockInfoVO stockInfoVO = getBaseStockInfoByCode(code);
-        List<StockDailyInfoVO> voList = stockInfoVO.getStockDailyInfoVOList();
+        // ================= 一次性回测（核心优化） =================
 
-        DetectorEnum[] values = DetectorEnum.values();
-        Map<String, List<Signal>> signalMap = new HashMap<>();
-        for (DetectorEnum value : values) {
-            signalMap.put(value.getName(), DetectorFactory.getDetector(value.getType())
-                    .detectSignals(voList, code));
+        List<PortfolioBackTestResult> portfolioBackTestResultList = PortfolioBackTestEngine.runPortfolioBackTest(Collections.singletonList(stockInfoVO), new BigDecimal("10000000"));
 
-        }
 
-        Map<String, List<BackTestRecord>> resultMap = BackTestEngine.runMultiStrategyBackTest(signalMap, new BigDecimal("1000000"), code);
-        // 和上证指数做对比
+        // // ================= 图表 =================
+
+        createChart(code, stockInfoVO, portfolioBackTestResultList);
+
+
+        return portfolioBackTestResultList;
+    }
+
+    private void createChart(String code,
+                             StockInfoVO stockInfoVO,
+                             List<PortfolioBackTestResult> recordMap) {
+
         StockInfoVO sh000001 = getBaseStockInfoByCode("sh000001");
+        // 保证开始日期相同，避免上证有数据但是指定股票/板块无数据
+        LocalDate startDate = stockInfoVO.getStockDailyInfoVOList()
+                .stream()
+                .map(StockDailyInfo::getDate)
+                .min(LocalDate::compareTo)
+                .get().minusDays(1);
+        sh000001.setStockDailyInfoVOList(sh000001.getStockDailyInfoVOList()
+                .stream()
+                .filter(e -> e.getDate().isAfter(startDate))
+                .toList());
+
         Map<String, List<StockDailyInfoVO>> benchmarkMap = new HashMap<>();
         benchmarkMap.put(sh000001.getCode(), sh000001.getStockDailyInfoVOList());
         benchmarkMap.put(stockInfoVO.getCode(), stockInfoVO.getStockDailyInfoVOList());
-        JFreeChart chart = BackTestChart.createMultiStrategyComparisonChart(resultMap, benchmarkMap, null);
+
+        String title = CharSequenceUtil.format(
+                "{}-{}多策略收益对比.png",
+                code,
+                stockInfoVO.getName()
+        );
+        JFreeChart chart = BackTestChart.createMultiStrategyComparisonChart(
+                recordMap,
+                benchmarkMap,
+                title
+        );
+
         try {
-            ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format(resourcesDirPath + "{}-{}多策略收益对比.png", code, stockInfoVO.getName())), chart, 3000, 1800);
+            ChartUtils.saveChartAsPNG(
+                    new File(resourcesDirPath + title),
+                    chart,
+                    3000,
+                    1800
+            );
         } catch (IOException e) {
             throw new LogicalException(e);
         }
-
-    }
-
-    private String initStockInfo(String code) {
-        return initStockInfo(code, code);
     }
 
     @Override
@@ -399,6 +351,7 @@ public class StockCommonServiceImpl implements StockCommonService {
         if (CollUtil.isEmpty(list)) {
             return;
         }
+        boolean hasNewData = false;
 
         // 2. 逐只股票处理（可考虑并行优化，但需注意数据库连接和接口限流）
         for (StockInfo stockInfo : list) {
@@ -447,6 +400,7 @@ public class StockCommonServiceImpl implements StockCommonService {
                 log.error("保存股票 {}-{} 每日数据失败", name, code);
                 continue;
             } else {
+                hasNewData = true;
                 log.error("保存股票 {}-{} 每日数据成功，共新增{}条数据", name, code, toSaveList.size());
             }
 
@@ -463,7 +417,13 @@ public class StockCommonServiceImpl implements StockCommonService {
                 }
             }
         }
-        updateStockDailyInfo();
+        if (hasNewData) {
+            updateStockDailyInfo();
+        }
+    }
+
+    private String initStockInfo(String code) {
+        return initStockInfo(code, code);
     }
 
 }

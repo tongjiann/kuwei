@@ -1,29 +1,23 @@
 package com.xiw.kuwei.constant;
 
-import com.xiw.kuwei.annotation.Detector;
 import com.xiw.kuwei.detector.DetectorInterface;
-import com.xiw.kuwei.detector.Ma10SignalDetector;
-import com.xiw.kuwei.detector.Ma20SignalDetector;
-import com.xiw.kuwei.detector.MacdSignalDetector;
+import com.xiw.kuwei.detector.DoubleMASignalDetector;
 import lombok.Getter;
 
 @Getter
 public enum DetectorEnum {
-    MACD(1, MacdSignalDetector.class),
-    MA20(2, Ma20SignalDetector.class),
-    MA10(3, Ma10SignalDetector.class),
+    MA10_30(new DoubleMASignalDetector(10, 30)),
+    MA5_15(new DoubleMASignalDetector(5, 15)),
+    MA20_60(new DoubleMASignalDetector(20, 60)),
     ;
 
-    private final int type;
 
     private final String name;
 
-    private final Class<? extends DetectorInterface> clazz;
+    private final DetectorInterface detectorInterface;
 
-    DetectorEnum(int type, Class<? extends DetectorInterface> clazz) {
-        this.type = type;
-        Detector annotation = clazz.getAnnotation(Detector.class);
-        this.name = annotation.name();
-        this.clazz = clazz;
+    DetectorEnum(DetectorInterface detectorInterface) {
+        this.name = detectorInterface.getDetectorName();
+        this.detectorInterface = detectorInterface;
     }
 }
