@@ -60,7 +60,6 @@ public class StockCommonServiceImpl implements StockCommonService {
         clearStockInfo(code);
         abstractFetcher fetcher = FetcherManager.getFetcher();
         StockInfo stockInfo = fetcher.getStockInfo(code, name);
-        stockInfoService.createEntity(stockInfo);
         StockInfo one = stockInfoService
                 .lambdaQuery()
                 .eq(StockInfo::getCode, code)
@@ -80,6 +79,8 @@ public class StockCommonServiceImpl implements StockCommonService {
                 .filter(Objects::nonNull)
                 .max(LocalDate::compareTo)
                 .ifPresent(end::set);
+        stockInfo.setLatestDataFreshTime(end.get());
+        stockInfoService.createEntity(stockInfo);
         log.info("初始化股票:【{}-{}】成功", name, code);
         log.info("股票:【{}-{}】共得到{}条数据，【{}～{}】的日期内的交易信息",
                 name, code, stockDailyInfoList.size(), start.get(), end.get());
@@ -87,6 +88,9 @@ public class StockCommonServiceImpl implements StockCommonService {
         return one.getId();
     }
 
+    /**
+     * 清理股票信息及每日信息
+     */
     private void clearStockInfo(String code) {
         List<StockInfo> list = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).list();
         if (!list.isEmpty()) {
