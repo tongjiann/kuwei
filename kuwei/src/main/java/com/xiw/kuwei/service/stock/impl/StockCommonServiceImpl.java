@@ -16,6 +16,7 @@ import com.xiw.kuwei.helper.fetcher.abstractFetcher;
 import com.xiw.kuwei.service.stock.StockCommonService;
 import com.xiw.kuwei.service.stock.StockDailyInfoService;
 import com.xiw.kuwei.service.stock.StockInfoService;
+import com.xiw.kuwei.util.BigDecimalUtil;
 import com.xiw.kuwei.util.PortfolioBackTestEngine;
 import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
@@ -225,24 +226,16 @@ public class StockCommonServiceImpl implements StockCommonService {
         });
     }
 
-    private @NotNull StockInfoVO getBaseStockInfoByCode(String code) {
+    private @NotNull StockInfoVO getBaseStockInfoByCode(String code, LocalDate startDate) {
         StockInfo stockInfo = stockInfoService.lambdaQuery().eq(StockInfo::getCode, code).one();
         if (stockInfo == null) {
             throw new NullPointerException("stockInfo is null");
         }
-        return doGetBaseStockInfo(stockInfo);
+        return doGetBaseStockInfo(stockInfo, startDate);
 
     }
 
-    private @NotNull StockInfoVO getBaseStockInfo(String stockId) {
-        StockInfo stockInfo = stockInfoService.getEntity(stockId);
-        if (stockInfo == null) {
-            throw new NullPointerException("stockInfo is null");
-        }
-        return doGetBaseStockInfo(stockInfo);
-    }
-
-    private @NotNull StockInfoVO doGetBaseStockInfo(StockInfo stockInfo) {
+    private @NotNull StockInfoVO doGetBaseStockInfo(StockInfo stockInfo, LocalDate startDate) {
         StockInfoVO stockInfoVO = new StockInfoVO();
         BeanUtils.copyProperties(stockInfo, stockInfoVO);
 
@@ -264,11 +257,16 @@ public class StockCommonServiceImpl implements StockCommonService {
             return vo;
         }).toList();
         stockInfoVO.setStockDailyInfoVOList(voList);
+        if (startDate != null) {
+            stockInfoVO.setStockDailyInfoVOList(voList.stream()
+                    .filter(e -> !e.getDate().isBefore(startDate))
+                    .toList());
+        }
         return stockInfoVO;
     }
 
     @Override
-    public List<PortfolioBackTestResult> multiTest(String code) {
+    public List<PortfolioBackTestResult> multiTest(String code, LocalDate startDate) {
 
         if (code == null) {
             List<StockInfo> stockInfoList = stockInfoService.lambdaQuery().list();
@@ -279,7 +277,7 @@ public class StockCommonServiceImpl implements StockCommonService {
             return stockInfoList.stream()
                     .map(StockInfo::getCode)
                     .filter(Objects::nonNull)
-                    .flatMap(c -> multiTest(c).stream())
+                    .flatMap(c -> multiTest(c, startDate).stream())
                     .toList();
         }
 
@@ -289,7 +287,7 @@ public class StockCommonServiceImpl implements StockCommonService {
             initStockInfo(code);
         }
 
-        StockInfoVO stockInfoVO = getBaseStockInfoByCode(code);
+        StockInfoVO stockInfoVO = getBaseStockInfoByCode(code, startDate);
         // ================= 一次性回测（核心优化） =================
 
         List<PortfolioBackTestResult> portfolioBackTestResultList = PortfolioBackTestEngine.runPortfolioBackTest(Collections.singletonList(stockInfoVO), new BigDecimal("10000000"));
@@ -297,7 +295,19 @@ public class StockCommonServiceImpl implements StockCommonService {
 
         // // ================= 图表 =================
 
-        createChart(code, stockInfoVO, portfolioBackTestResultList);
+        AtomicReference<LocalDate> startDateAtom = new AtomicReference<>();
+        AtomicReference<LocalDate> endDateAtom = new AtomicReference<>();
+        stockInfoVO.getStockDailyInfoVOList()
+                .stream()
+                .map(StockDailyInfo::getDate)
+                .min(LocalDate::compareTo)
+                .ifPresent(startDateAtom::set);
+        stockInfoVO.getStockDailyInfoVOList()
+                .stream()
+                .map(StockDailyInfo::getDate)
+                .max(LocalDate::compareTo)
+                .ifPresent(endDateAtom::set);
+        createChart(code, stockInfoVO, startDateAtom.get(), endDateAtom.get(), portfolioBackTestResultList);
 
 
         return portfolioBackTestResultList;
@@ -305,23 +315,23 @@ public class StockCommonServiceImpl implements StockCommonService {
 
     private void createChart(String code,
                              StockInfoVO stockInfoVO,
-                             List<PortfolioBackTestResult> recordMap) {
+                             LocalDate startDate, LocalDate endDate, List<PortfolioBackTestResult> recordMap) {
 
-        StockInfoVO sh000001 = getBaseStockInfoByCode("sh000001");
+        StockInfoVO sh000001 = getBaseStockInfoByCode("sh000001", startDate);
+        StockInfoVO annual15 = simulateAnnualizedReturnData(stockInfoVO, startDate, endDate, new BigDecimal("0.15"));
+
         // 保证开始日期相同，避免上证有数据但是指定股票/板块无数据
-        LocalDate startDate = stockInfoVO.getStockDailyInfoVOList()
-                .stream()
-                .map(StockDailyInfo::getDate)
-                .min(LocalDate::compareTo)
-                .get().minusDays(1);
-        sh000001.setStockDailyInfoVOList(sh000001.getStockDailyInfoVOList()
-                .stream()
-                .filter(e -> e.getDate().isAfter(startDate))
-                .toList());
+        if (startDate != null) {
+            sh000001.setStockDailyInfoVOList(sh000001.getStockDailyInfoVOList()
+                    .stream()
+                    .filter(e -> e.getDate().isAfter(startDate))
+                    .toList());
+        }
 
         Map<String, List<StockDailyInfoVO>> benchmarkMap = new HashMap<>();
-        benchmarkMap.put(sh000001.getCode(), sh000001.getStockDailyInfoVOList());
-        benchmarkMap.put(stockInfoVO.getCode(), stockInfoVO.getStockDailyInfoVOList());
+        benchmarkMap.put(sh000001.getName(), sh000001.getStockDailyInfoVOList());
+        benchmarkMap.put(stockInfoVO.getName(), stockInfoVO.getStockDailyInfoVOList());
+        benchmarkMap.put(annual15.getName(), annual15.getStockDailyInfoVOList());
 
         String title = CharSequenceUtil.format(
                 "{}-{}多策略收益对比.png",
@@ -344,6 +354,49 @@ public class StockCommonServiceImpl implements StockCommonService {
         } catch (IOException e) {
             throw new LogicalException(e);
         }
+    }
+
+    private StockInfoVO simulateAnnualizedReturnData(StockInfoVO stockInfoVO, LocalDate startDate, LocalDate endDate, BigDecimal annualizedReturn) {
+        // 创建一个虚拟的 StockInfoVO 用于标识这条线
+        StockInfoVO annualBenchmark = new StockInfoVO();
+        annualBenchmark.setCode("ANNUAL_" + annualizedReturn);
+        annualBenchmark.setName("年化" + annualizedReturn + "%基准");
+        List<StockDailyInfoVO> annualLine = new ArrayList<>();
+        annualBenchmark.setStockDailyInfoVOList(annualLine);
+        if (startDate != null && endDate != null) {
+            // 获取基准日期列表（使用 stockInfoVO 中在 [startDate, endDate] 范围内的所有交易日）
+            List<LocalDate> tradingDates = stockInfoVO.getStockDailyInfoVOList().stream()
+                    .map(StockDailyInfoVO::getDate)
+                    .filter(date -> !date.isBefore(startDate) && !date.isAfter(endDate))
+                    .sorted()
+                    .toList();
+            if (!tradingDates.isEmpty()) {
+
+                // 计算年化收益率对应的每日复利因子（基于交易日数量）
+                int tradingDays = tradingDates.size();
+                // 年化15% -> 总收益率 = (1+年化收益)^(年数)
+                BigDecimal years = new BigDecimal(endDate.toEpochDay() - startDate.toEpochDay())
+                        .divide(new BigDecimal("365.25"), 6, RoundingMode.HALF_EVEN);
+                BigDecimal totalReturn = BigDecimalUtil.pow(BigDecimal.ONE.add(annualizedReturn), years);
+
+                // 每天线性增长
+                BigDecimal dailyIncrement = totalReturn.subtract(BigDecimal.ONE)
+                        .divide(new BigDecimal(tradingDays), 10, RoundingMode.HALF_EVEN);
+
+                BigDecimal nav = BigDecimal.ONE;
+
+                for (LocalDate date : tradingDates) {
+                    StockDailyInfoVO point = new StockDailyInfoVO();
+                    point.setDate(date);
+                    point.setTodayClosePrice(nav);
+
+                    annualLine.add(point);
+
+                    nav = nav.add(dailyIncrement);
+                }
+            }
+        }
+        return annualBenchmark;
     }
 
     @Override

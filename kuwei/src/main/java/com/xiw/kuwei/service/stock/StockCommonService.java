@@ -3,6 +3,7 @@ package com.xiw.kuwei.service.stock;
 import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
 
+import java.time.LocalDate;
 import java.util.List;
 
 public interface StockCommonService {
@@ -19,7 +20,7 @@ public interface StockCommonService {
 
     void createCharts(int days);
 
-    List<PortfolioBackTestResult> multiTest(String code);
+    List<PortfolioBackTestResult> multiTest(String code, LocalDate startDate);
 
     void syncDailyInfo();
 

@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 
 /**
@@ -72,9 +74,16 @@ public class StockCommonController extends BaseController {
      * 对单一股票进行多策略对比
      */
     @RequestMapping("multi-test")
-    public JsonResult<?> multiTest(@RequestParam(required = false) String code) {
+    public JsonResult<?> multiTest(@RequestParam(required = false) String code, @RequestParam(required = false) String startDateStr) {
 
-        List<PortfolioBackTestResult> data = stockCommonService.multiTest(code);
+        LocalDate startDate = null;
+        if (startDateStr != null) {
+            try {
+                startDate = LocalDate.parse(startDateStr, DateTimeFormatter.ofPattern("yyyyMMdd"));
+            } catch (Exception ignored) {
+            }
+        }
+        List<PortfolioBackTestResult> data = stockCommonService.multiTest(code, startDate);
         if (code != null) {
 
             return JsonResult.OK(data);
