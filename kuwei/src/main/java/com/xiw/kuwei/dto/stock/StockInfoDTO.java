@@ -88,4 +88,27 @@ public class StockInfoDTO extends StockInfo {
         return null;
     }
 
+    /**
+     * 最新数据更新时间 起始
+     */
+    @BindQuery(comparison = Comparison.GE, field = "latestDataFreshTime")
+    private LocalDate latestDataFreshTimeBegin;
+
+    /**
+     * 最新数据更新时间 截止
+     */
+    @BindQuery(comparison = Comparison.LE, field = "latestDataFreshTime")
+    private LocalDate latestDataFreshTimeEnd;
+
+    /**
+     * 数据起始时间 起始
+     */
+    @BindQuery(comparison = Comparison.GE, field = "dataStartTime")
+    private LocalDate dataStartTimeBegin;
+
+    /**
+     * 数据起始时间 截止
+     */
+    @BindQuery(comparison = Comparison.LE, field = "dataStartTime")
+    private LocalDate dataStartTimeEnd;
 }

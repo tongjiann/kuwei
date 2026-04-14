@@ -9,6 +9,10 @@ public class PositionInfo {
 
     private String code;
 
+    private String name;
+
+    private BigDecimal maxPosition;
+
     private BigDecimal position = BigDecimal.ZERO;      // 持仓股数
     private BigDecimal avgCost = BigDecimal.ZERO;       // 平均成本
     private BigDecimal totalCost = BigDecimal.ZERO;     // 总成本

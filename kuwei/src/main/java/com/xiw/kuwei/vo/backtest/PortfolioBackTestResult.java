@@ -1,5 +1,6 @@
 package com.xiw.kuwei.vo.backtest;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 
 import java.math.BigDecimal;
@@ -16,14 +17,16 @@ public class PortfolioBackTestResult {
 
     private BigDecimal returnRate;
 
-    private BigDecimal maxDrawdown;
+    private BigDecimal maxDrawDown;
 
     private BigDecimal sharpeRatio;
 
     private String strategy;
 
+    @JsonIgnore
     private List<Signal> signalList;
 
+    @JsonIgnore
     private List<TradeDetail> tradeDetailList;
 
 

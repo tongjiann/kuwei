@@ -91,4 +91,10 @@ public class StockInfo extends BaseModel {
      */
     @TableField()
     private LocalDate latestDataFreshTime;
+
+    /**
+     * 数据起始时间
+     */
+    @TableField()
+    private LocalDate dataStartTime;
 }

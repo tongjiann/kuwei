@@ -1,4 +1,4 @@
-package com.xiw.kuwei.chart.render;
+package com.xiw.kuwei.util.chart.render;
 
 import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.plot.CrosshairState;

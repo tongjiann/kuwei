@@ -22,4 +22,6 @@ public class PortfolioDailyRecord {
 
     private List<TradeDetail> tradeList;
 
+    private List<Signal> signalList;
+
 }

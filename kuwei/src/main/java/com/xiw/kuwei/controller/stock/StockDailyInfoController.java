@@ -1,23 +1,19 @@
 package com.xiw.kuwei.controller.stock;
 
-import com.diboot.core.util.V;
-import com.diboot.core.util.S;
-import com.diboot.core.util.ContextHolder;
-import com.diboot.core.vo.JsonResult;
-import com.diboot.core.vo.LabelValue;
-import com.diboot.core.vo.Pagination;
 import com.diboot.core.controller.BaseCrudRestController;
-import com.diboot.iam.annotation.OperationCons;
+import com.diboot.core.vo.JsonResult;
+import com.diboot.core.vo.Pagination;
 import com.diboot.iam.annotation.BindPermission;
 import com.diboot.iam.annotation.Log;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
+import com.diboot.iam.annotation.OperationCons;
+import com.xiw.kuwei.dto.stock.StockDailyInfoDTO;
 import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.service.stock.StockDailyInfoService;
 import com.xiw.kuwei.vo.stock.StockDailyInfoDetailVO;
 import com.xiw.kuwei.vo.stock.StockDailyInfoListVO;
-import com.xiw.kuwei.dto.stock.StockDailyInfoDTO;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
 
 import java.io.Serializable;
 import java.util.List;
@@ -51,6 +47,15 @@ public class StockDailyInfoController extends BaseCrudRestController<StockDailyI
     @GetMapping()
     public JsonResult<List<StockDailyInfoListVO>> getListVOMapping(StockDailyInfoDTO queryDto, Pagination pagination) throws Exception {
         return super.getViewObjectList(queryDto, pagination, StockDailyInfoListVO.class);
+    }
+
+    @RequestMapping("get-k-line-data-by-stock-id")
+    public JsonResult<List<StockDailyInfo>> getKLineDataByStockId(@RequestParam String stockId) {
+
+        return JsonResult.OK(stockDailyInfoService.lambdaQuery()
+                .eq(StockDailyInfo::getStockId, stockId)
+                .orderByAsc(StockDailyInfo::getDate)
+                .list());
     }
 
     /**

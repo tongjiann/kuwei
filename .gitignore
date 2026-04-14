@@ -30,3 +30,5 @@ target/
 
 .build/**/dist
 /log/
+
+./diboot-admin-ui/

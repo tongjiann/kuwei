@@ -8,7 +8,7 @@ import java.util.List;
 
 public interface StockCommonService {
 
-    String initStockInfo(String code, String name);
+    void initStockInfo(String code, String name);
 
     void updateStockInfo();
 
@@ -22,6 +22,8 @@ public interface StockCommonService {
 
     List<PortfolioBackTestResult> multiTest(String code, LocalDate startDate);
 
-    void syncDailyInfo();
+    void syncDailyInfo(String stockId);
+
+    List<PortfolioBackTestResult> multiTestByCodeList(List<String> codeList, LocalDate startDate);
 
 }

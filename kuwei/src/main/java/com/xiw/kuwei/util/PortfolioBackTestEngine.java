@@ -1,5 +1,6 @@
 package com.xiw.kuwei.util;
 
+import com.diboot.core.util.BeanUtils;
 import com.xiw.kuwei.constant.DetectorEnum;
 import com.xiw.kuwei.detector.DetectorFactory;
 import com.xiw.kuwei.vo.backtest.*;
@@ -47,13 +48,16 @@ public class PortfolioBackTestEngine {
 
             // ===== 3. 初始化 =====
             BigDecimal cash = initialCash;
+            BigDecimal totalAsset = initialCash;
+
             Map<String, PositionInfo> positionMap = new HashMap<>();
             List<PortfolioDailyRecord> records = new ArrayList<>();
 
             // ===== 4. 逐日推进 =====
             for (LocalDate date : allDates) {
 
-                List<TradeDetail> trades = new ArrayList<>();
+                List<TradeDetail> tradeDetailList = new ArrayList<>();
+                List<Signal> signalList = new ArrayList<>();
 
                 List<Signal> signals = dateSignalMap.getOrDefault(date, Collections.emptyList());
                 for (StockInfoVO stock : stockList) {
@@ -66,6 +70,8 @@ public class PortfolioBackTestEngine {
 
                     PositionInfo pos = positionMap.computeIfAbsent(code, k -> new PositionInfo());
                     pos.setCode(code);
+                    pos.setMaxPosition(totalAsset);
+                    pos.setName(stock.getName());
 
                     // ===== 信号 =====
 
@@ -87,7 +93,7 @@ public class PortfolioBackTestEngine {
                             pos.setPosition(pos.getPosition().add(shares));
                             pos.setTotalCost(pos.getTotalCost().add(cost));
 
-                            trades.add(buildTrade(code, "买", price, shares, cost, ZERO, signal.getDescription(), date));
+                            tradeDetailList.add(buildTrade(code, "买", price, shares, cost, ZERO, signal.getDescription(), date));
 
                         } else {
                             // ===== 卖 =====
@@ -96,9 +102,18 @@ public class PortfolioBackTestEngine {
                             BigDecimal avgCost = pos.getTotalCost()
                                     .divide(pos.getPosition(), 8, RoundingMode.HALF_UP);
 
-                            BigDecimal sellShares = pos.getPosition()
-                                    .multiply(strength)
-                                    .setScale(0, RoundingMode.HALF_DOWN);
+                            // 最大可卖资金 = maxPosition * strength
+                            BigDecimal targetSellValue = pos.getMaxPosition().multiply(strength);
+
+                            // 转换为股数 = 金额 / 价格
+                            BigDecimal targetSellShares = targetSellValue
+                                    .divide(price, 0, RoundingMode.DOWN);
+
+                            // 实际卖出股数 = min(目标股数, 当前持仓)
+                            BigDecimal sellShares = targetSellShares.min(pos.getPosition());
+
+                            if (sellShares.compareTo(ZERO) <= 0) continue;
+
                             BigDecimal revenue = sellShares.multiply(price);
                             BigDecimal pnl = price.subtract(avgCost).multiply(sellShares);
 
@@ -107,8 +122,11 @@ public class PortfolioBackTestEngine {
                             pos.setPosition(pos.getPosition().subtract(sellShares));
                             pos.setTotalCost(pos.getTotalCost().subtract(avgCost.multiply(sellShares)));
 
-                            trades.add(buildTrade(code, "卖", price, sellShares, revenue, pnl, signal.getDescription(), date));
+                            tradeDetailList.add(
+                                    buildTrade(code, "卖", price, sellShares, revenue, pnl, signal.getDescription(), date)
+                            );
                         }
+                        signalList.add(signal);
                     }
 
                     // ===== 更新持仓 =====
@@ -132,7 +150,7 @@ public class PortfolioBackTestEngine {
                         .map(PositionInfo::getPositionValue)
                         .reduce(ZERO, BigDecimal::add);
 
-                BigDecimal totalAsset = cash.add(totalPositionValue);
+                totalAsset = cash.add(totalPositionValue);
 
                 PortfolioDailyRecord record = new PortfolioDailyRecord();
                 record.setDate(date);
@@ -140,7 +158,8 @@ public class PortfolioBackTestEngine {
                 record.setTotalAsset(totalAsset);
                 record.setTotalPositionValue(totalPositionValue);
                 record.setPositionMap(clonePositionMap(positionMap));
-                record.setTradeList(trades);
+                record.setTradeList(tradeDetailList);
+                record.setSignalList(signalList);
 
                 records.add(record);
             }
@@ -196,12 +215,7 @@ public class PortfolioBackTestEngine {
         for (Map.Entry<String, PositionInfo> e : src.entrySet()) {
             PositionInfo p = e.getValue();
             PositionInfo c = new PositionInfo();
-            c.setCode(p.getCode());
-            c.setPosition(p.getPosition());
-            c.setAvgCost(p.getAvgCost());
-            c.setTotalCost(p.getTotalCost());
-            c.setPrice(p.getPrice());
-            c.setPositionValue(p.getPositionValue());
+            BeanUtils.copyProperties(p, c);
             copy.put(e.getKey(), c);
         }
         return copy;
@@ -221,7 +235,7 @@ public class PortfolioBackTestEngine {
         r.setReturnRate(end.subtract(initialCash)
                 .divide(initialCash, 6, RoundingMode.HALF_UP));
 
-        r.setMaxDrawdown(calcMaxDrawdown(list));
+        r.setMaxDrawDown(calcMaxDrawdown(list));
         r.setSharpeRatio(calcSharpe(list));
         r.setSignalList(dateSignalMap.entrySet()
                 .stream()

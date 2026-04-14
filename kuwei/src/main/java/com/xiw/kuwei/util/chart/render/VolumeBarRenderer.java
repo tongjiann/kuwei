@@ -1,4 +1,4 @@
-package com.xiw.kuwei.chart.render;
+package com.xiw.kuwei.util.chart.render;
 
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import org.jfree.chart.renderer.xy.StandardXYBarPainter;

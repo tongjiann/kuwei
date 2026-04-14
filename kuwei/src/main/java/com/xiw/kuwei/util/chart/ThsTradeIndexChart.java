@@ -1,8 +1,8 @@
-package com.xiw.kuwei.chart;
+package com.xiw.kuwei.util.chart;
 
-import com.xiw.kuwei.chart.render.ChineseCandlestickRenderer;
-import com.xiw.kuwei.chart.render.MacdBarRenderer;
-import com.xiw.kuwei.chart.render.VolumeBarRenderer;
+import com.xiw.kuwei.util.chart.render.ChineseCandlestickRenderer;
+import com.xiw.kuwei.util.chart.render.MacdBarRenderer;
+import com.xiw.kuwei.util.chart.render.VolumeBarRenderer;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
 import org.jfree.chart.JFreeChart;

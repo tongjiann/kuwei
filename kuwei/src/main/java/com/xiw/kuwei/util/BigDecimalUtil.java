@@ -5,6 +5,8 @@ import java.math.MathContext;
 
 public class BigDecimalUtil {
 
+    public static final BigDecimal BD_100 = new BigDecimal("100");
+
 
     private static final MathContext DEFAULT_MATH_CONTEXT = MathContext.DECIMAL128;
 

@@ -1,4 +1,4 @@
-package com.xiw.kuwei.chart;
+package com.xiw.kuwei.util.chart;
 
 import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
 import com.xiw.kuwei.vo.backtest.PortfolioDailyRecord;
@@ -24,8 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
-
-import static com.xiw.kuwei.chart.ThsTradeIndexChart.applyDarkTheme;
 
 /**
  * 回测对比图表生成器
@@ -207,7 +205,7 @@ public class BackTestChart {
 
         plot.setRenderer(renderer);
 
-        applyDarkTheme(plot);
+        ThsTradeIndexChart.applyDarkTheme(plot);
 
         return chart;
     }
@@ -379,7 +377,7 @@ public class BackTestChart {
 
         plot.setRenderer(renderer);
 
-        applyDarkTheme(plot);
+        ThsTradeIndexChart.applyDarkTheme(plot);
 
         return chart;
     }

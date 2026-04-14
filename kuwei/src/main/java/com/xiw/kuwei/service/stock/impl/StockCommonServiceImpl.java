@@ -2,12 +2,9 @@ package com.xiw.kuwei.service.stock.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.text.CharSequenceUtil;
-import cn.hutool.core.util.StrUtil;
+import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.diboot.core.entity.AbstractEntity;
 import com.diboot.core.util.BeanUtils;
-import com.xiw.kuwei.calculator.MacdCalculator;
-import com.xiw.kuwei.chart.BackTestChart;
-import com.xiw.kuwei.chart.ThsTradeIndexChart;
 import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.entity.stock.StockInfo;
 import com.xiw.kuwei.exception.LogicalException;
@@ -17,7 +14,9 @@ import com.xiw.kuwei.service.stock.StockCommonService;
 import com.xiw.kuwei.service.stock.StockDailyInfoService;
 import com.xiw.kuwei.service.stock.StockInfoService;
 import com.xiw.kuwei.util.BigDecimalUtil;
+import com.xiw.kuwei.util.ChartUtil;
 import com.xiw.kuwei.util.PortfolioBackTestEngine;
+import com.xiw.kuwei.util.StockUtil;
 import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
@@ -44,10 +43,11 @@ import java.util.stream.Collectors;
 @Service
 public class StockCommonServiceImpl implements StockCommonService {
 
-    private static final BigDecimal BD_100 = new BigDecimal("100");
+
 
     @Value("${diboot.file.storage-directory}")
     private String resourcesDirPath;
+
 
     @Resource
     private StockInfoService stockInfoService;
@@ -56,17 +56,14 @@ public class StockCommonServiceImpl implements StockCommonService {
     private StockDailyInfoService stockDailyInfoService;
 
     @Override
-    public String initStockInfo(String code, String name) {
+    @Transactional
+    public void initStockInfo(String code, String name) {
 
         clearStockInfo(code);
         abstractFetcher fetcher = FetcherManager.getFetcher();
         StockInfo stockInfo = fetcher.getStockInfo(code, name);
-        StockInfo one = stockInfoService
-                .lambdaQuery()
-                .eq(StockInfo::getCode, code)
-                .eq(StockInfo::getName, name)
-                .one();
-        List<StockDailyInfo> stockDailyInfoList = fetcher.getStockDailyInfo(one);
+        stockInfo.setId(IdWorker.getIdStr());
+        List<StockDailyInfo> stockDailyInfoList = fetcher.getStockDailyInfo(stockInfo);
         stockDailyInfoService.createEntities(stockDailyInfoList);
         AtomicReference<LocalDate> start = new AtomicReference<>();
         AtomicReference<LocalDate> end = new AtomicReference<>();
@@ -81,12 +78,12 @@ public class StockCommonServiceImpl implements StockCommonService {
                 .max(LocalDate::compareTo)
                 .ifPresent(end::set);
         stockInfo.setLatestDataFreshTime(end.get());
+        stockInfo.setDataStartTime(start.get());
         stockInfoService.createEntity(stockInfo);
         log.info("初始化股票:【{}-{}】成功", name, code);
         log.info("股票:【{}-{}】共得到{}条数据，【{}～{}】的日期内的交易信息",
                 name, code, stockDailyInfoList.size(), start.get(), end.get());
 
-        return one.getId();
     }
 
     /**
@@ -116,7 +113,16 @@ public class StockCommonServiceImpl implements StockCommonService {
                     }
                     return y;
                 }));
+        Map<String, LocalDate> stockIdDataStartTimeMap = stockDailyInfoList.stream()
+                .filter(e -> e.getStockId() != null)
+                .collect(Collectors.toMap(StockDailyInfo::getStockId, StockDailyInfo::getDate, (x, y) -> {
+                    if (x.isBefore(y)) {
+                        return x;
+                    }
+                    return y;
+                }));
         stockInfoList.forEach(stockInfo -> {
+            stockInfo.setDataStartTime(stockIdDataStartTimeMap.get(stockInfo.getId()));
             stockInfo.setLatestDataFreshTime(stockIdLastDataFreshTimeMap.get(stockInfo.getId()));
         });
         stockInfoService.updateEntities(stockInfoList);
@@ -150,8 +156,7 @@ public class StockCommonServiceImpl implements StockCommonService {
 
                 if (yesterdayClosePrice.compareTo(BigDecimal.ZERO) != 0) {
                     BigDecimal changePrice = todayClosePrice.subtract(yesterdayClosePrice);
-                    BigDecimal changePercentage = changePrice
-                            .multiply(BD_100.divide(yesterdayClosePrice, 2, RoundingMode.HALF_EVEN));
+                    BigDecimal changePercentage = changePrice.multiply(BigDecimalUtil.BD_100.divide(yesterdayClosePrice, 2, RoundingMode.HALF_EVEN));
                     for (StockDailyInfo e : stockDailyInfos) {
                         e.setChangePercentage(changePercentage);
                         e.setChangePrice(changePrice);
@@ -184,8 +189,6 @@ public class StockCommonServiceImpl implements StockCommonService {
             BeanUtils.copyProperties(e, vo);
             return vo;
         }).toList();
-
-        MacdCalculator.calculate(voList);
         int right = voList.size();
         int left = Integer.max(0, right - days);
         stockInfoVO.setStockDailyInfoVOList(voList.subList(left, right));
@@ -205,11 +208,12 @@ public class StockCommonServiceImpl implements StockCommonService {
     public void createChartByStockInfo(StockInfoVO stockInfoVO) {
         List<StockDailyInfoVO> stockDailyInfoVOList = stockInfoVO.getStockDailyInfoVOList();
         int size = stockDailyInfoVOList.size();
+
         String title = CharSequenceUtil.format("{}-{}-{}d-{}", stockInfoVO.getCode(), stockInfoVO.getName(), size, LocalDate.now());
-        JFreeChart chart = ThsTradeIndexChart.createChart(stockInfoVO, title);
+        JFreeChart chart = ChartUtil.createChartByStockInfo(stockInfoVO);
 
         try {
-            ChartUtils.saveChartAsPNG(new File(StrUtil.format(resourcesDirPath + title + ".png")), chart, 3000, 1800);
+            ChartUtils.saveChartAsPNG(new File(CharSequenceUtil.format(resourcesDirPath + title + ".png")), chart, 3000, 1800);
         } catch (IOException e) {
             throw new LogicalException(e);
         }
@@ -307,42 +311,15 @@ public class StockCommonServiceImpl implements StockCommonService {
                 .map(StockDailyInfo::getDate)
                 .max(LocalDate::compareTo)
                 .ifPresent(endDateAtom::set);
-        createChart(code, stockInfoVO, startDateAtom.get(), endDateAtom.get(), portfolioBackTestResultList);
 
-
-        return portfolioBackTestResultList;
-    }
-
-    private void createChart(String code,
-                             StockInfoVO stockInfoVO,
-                             LocalDate startDate, LocalDate endDate, List<PortfolioBackTestResult> recordMap) {
-
-        StockInfoVO sh000001 = getBaseStockInfoByCode("sh000001", startDate);
-        StockInfoVO annual15 = simulateAnnualizedReturnData(stockInfoVO, startDate, endDate, new BigDecimal("0.15"));
-
-        // 保证开始日期相同，避免上证有数据但是指定股票/板块无数据
-        if (startDate != null) {
-            sh000001.setStockDailyInfoVOList(sh000001.getStockDailyInfoVOList()
-                    .stream()
-                    .filter(e -> e.getDate().isAfter(startDate))
-                    .toList());
-        }
-
-        Map<String, List<StockDailyInfoVO>> benchmarkMap = new HashMap<>();
-        benchmarkMap.put(sh000001.getName(), sh000001.getStockDailyInfoVOList());
-        benchmarkMap.put(stockInfoVO.getName(), stockInfoVO.getStockDailyInfoVOList());
-        benchmarkMap.put(annual15.getName(), annual15.getStockDailyInfoVOList());
 
         String title = CharSequenceUtil.format(
                 "{}-{}多策略收益对比.png",
                 code,
                 stockInfoVO.getName()
         );
-        JFreeChart chart = BackTestChart.createMultiStrategyComparisonChart(
-                recordMap,
-                benchmarkMap,
-                title
-        );
+        Map<String, List<StockDailyInfoVO>> benchMarkMap = getDefaultbenchMarkMap(Collections.singletonList(stockInfoVO), startDateAtom, endDateAtom);
+        JFreeChart chart = ChartUtil.createStrategyChart(title, benchMarkMap, portfolioBackTestResultList);
 
         try {
             ChartUtils.saveChartAsPNG(
@@ -354,57 +331,120 @@ public class StockCommonServiceImpl implements StockCommonService {
         } catch (IOException e) {
             throw new LogicalException(e);
         }
+
+        return portfolioBackTestResultList;
     }
 
-    private StockInfoVO simulateAnnualizedReturnData(StockInfoVO stockInfoVO, LocalDate startDate, LocalDate endDate, BigDecimal annualizedReturn) {
-        // 创建一个虚拟的 StockInfoVO 用于标识这条线
-        StockInfoVO annualBenchmark = new StockInfoVO();
-        annualBenchmark.setCode("ANNUAL_" + annualizedReturn);
-        annualBenchmark.setName("年化" + annualizedReturn + "%基准");
-        List<StockDailyInfoVO> annualLine = new ArrayList<>();
-        annualBenchmark.setStockDailyInfoVOList(annualLine);
-        if (startDate != null && endDate != null) {
-            // 获取基准日期列表（使用 stockInfoVO 中在 [startDate, endDate] 范围内的所有交易日）
-            List<LocalDate> tradingDates = stockInfoVO.getStockDailyInfoVOList().stream()
-                    .map(StockDailyInfoVO::getDate)
-                    .filter(date -> !date.isBefore(startDate) && !date.isAfter(endDate))
-                    .sorted()
-                    .toList();
-            if (!tradingDates.isEmpty()) {
+    private @NotNull Map<String, List<StockDailyInfoVO>> getDefaultbenchMarkMap(List<StockInfoVO> stockInfoVOList, AtomicReference<LocalDate> startDateAtom, AtomicReference<LocalDate> endDateAtom) {
+        LocalDate startDate = startDateAtom.get();
+        LocalDate endDate = endDateAtom.get();
+        Map<String, List<StockDailyInfoVO>> benchMarkMap = new HashMap<>();
+        StockInfoVO sh000001 = getBaseStockInfoByCode("sh000001", startDate);
 
-                // 计算年化收益率对应的每日复利因子（基于交易日数量）
-                int tradingDays = tradingDates.size();
-                // 年化15% -> 总收益率 = (1+年化收益)^(年数)
-                BigDecimal years = new BigDecimal(endDate.toEpochDay() - startDate.toEpochDay())
-                        .divide(new BigDecimal("365.25"), 6, RoundingMode.HALF_EVEN);
-                BigDecimal totalReturn = BigDecimalUtil.pow(BigDecimal.ONE.add(annualizedReturn), years);
+        List<LocalDate> sortedTradingDateList = stockInfoVOList.stream()
+                .map(StockInfoVO::getStockDailyInfoVOList)
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .map(StockDailyInfo::getDate)
+                .distinct()
+                .sorted(LocalDate::compareTo)
+                .toList();
+        StockInfoVO annual15 = StockUtil.simulateAnnualizedReturnData(sortedTradingDateList, startDate, endDate, new BigDecimal("0.15"));
 
-                // 每天线性增长
-                BigDecimal dailyIncrement = totalReturn.subtract(BigDecimal.ONE)
-                        .divide(new BigDecimal(tradingDays), 10, RoundingMode.HALF_EVEN);
-
-                BigDecimal nav = BigDecimal.ONE;
-
-                for (LocalDate date : tradingDates) {
-                    StockDailyInfoVO point = new StockDailyInfoVO();
-                    point.setDate(date);
-                    point.setTodayClosePrice(nav);
-
-                    annualLine.add(point);
-
-                    nav = nav.add(dailyIncrement);
-                }
-            }
+        // 保证开始日期相同，避免上证有数据但是指定股票/板块无数据
+        if (startDate != null) {
+            sh000001.setStockDailyInfoVOList(sh000001.getStockDailyInfoVOList()
+                    .stream()
+                    .filter(e -> e.getDate().isAfter(startDate))
+                    .toList());
         }
-        return annualBenchmark;
+
+        for (StockInfoVO stockInfoVO : stockInfoVOList) {
+            benchMarkMap.put(stockInfoVO.getName(), stockInfoVO.getStockDailyInfoVOList());
+        }
+        benchMarkMap.put(sh000001.getName(), sh000001.getStockDailyInfoVOList());
+        benchMarkMap.put(annual15.getName(), annual15.getStockDailyInfoVOList());
+        return benchMarkMap;
     }
 
     @Override
+    public List<PortfolioBackTestResult> multiTestByCodeList(List<String> codeList, LocalDate startDate) {
+        List<StockInfo> existStockInfoList = stockInfoService.lambdaQuery()
+                .in(CollUtil.isNotEmpty(codeList), StockInfo::getCode, codeList)
+                .list();
+        List<StockInfoVO> stockInfoVOList;
+        if (CollUtil.isEmpty(codeList)) {
+            stockInfoVOList = existStockInfoList.stream()
+                    .map(StockInfo::getCode)
+                    .map(e -> getBaseStockInfoByCode(e, startDate))
+                    .toList();
+        } else {
+            existStockInfoList = stockInfoService.lambdaQuery().in(StockInfo::getCode, codeList).list();
+            List<String> existStockCodeList = existStockInfoList.stream().map(StockInfo::getCode).toList();
+            List<String> notExistStockCodeList = codeList.stream()
+                    .filter(e -> !existStockCodeList.contains(e))
+                    .toList();
+            if (CollUtil.isNotEmpty(notExistStockCodeList))
+                // ================= 初始化 =================
+                notExistStockCodeList.forEach(this::initStockInfo);
+
+            stockInfoVOList = codeList.stream().map(e -> {
+                StockInfoVO stockInfoVO;
+                try {
+                    stockInfoVO = getBaseStockInfoByCode(e, startDate);
+                } catch (Exception ignored) {
+                    return null;
+                }
+                return stockInfoVO;
+            }).filter(Objects::nonNull).toList();
+        }
+
+        List<PortfolioBackTestResult> portfolioBackTestResultList = PortfolioBackTestEngine.runPortfolioBackTest(stockInfoVOList, new BigDecimal("10000000"));
+
+
+        // // ================= 图表 =================
+        AtomicReference<LocalDate> startDateAtom = new AtomicReference<>();
+        AtomicReference<LocalDate> endDateAtom = new AtomicReference<>();
+        stockInfoVOList.stream()
+                .map(StockInfoVO::getStockDailyInfoVOList)
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .map(StockDailyInfo::getDate)
+                .min(LocalDate::compareTo)
+                .ifPresent(startDateAtom::set);
+        stockInfoVOList.stream()
+                .map(StockInfoVO::getStockDailyInfoVOList)
+                .filter(Objects::nonNull)
+                .flatMap(Collection::stream)
+                .map(StockDailyInfo::getDate)
+                .max(LocalDate::compareTo)
+                .ifPresent(endDateAtom::set);
+        Map<String, List<StockDailyInfoVO>> defaultbenchMarkMap = getDefaultbenchMarkMap(stockInfoVOList, startDateAtom, endDateAtom);
+        String title = String.join("|", codeList) + "混合基金多策略对比.png";
+        JFreeChart chart = ChartUtil.createStrategyChart(title, defaultbenchMarkMap, portfolioBackTestResultList);
+
+
+        try {
+            ChartUtils.saveChartAsPNG(
+                    new File(resourcesDirPath + title),
+                    chart,
+                    3000,
+                    1800
+            );
+        } catch (IOException e) {
+            throw new LogicalException(e);
+        }
+
+        return portfolioBackTestResultList;
+    }
+
+
+    @Override
     @Transactional
-    public void syncDailyInfo() {
+    public void syncDailyInfo(String stockId) {
         log.info("开始同步股票信息");
         // 1. 获取所有需要同步的股票
-        List<StockInfo> list = stockInfoService.lambdaQuery().list();
+        List<StockInfo> list = stockInfoService.lambdaQuery().eq(stockId != null, StockInfo::getId, stockId).list();
         if (CollUtil.isEmpty(list)) {
             return;
         }
@@ -479,8 +519,8 @@ public class StockCommonServiceImpl implements StockCommonService {
         }
     }
 
-    private String initStockInfo(String code) {
-        return initStockInfo(code, code);
+    private void initStockInfo(String code) {
+        initStockInfo(code, code);
     }
 
 }
