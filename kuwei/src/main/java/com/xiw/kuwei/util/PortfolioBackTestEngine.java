@@ -78,24 +78,31 @@ public class PortfolioBackTestEngine {
                     // ===== 信号 =====
 
                     for (Signal signal : signals) {
-
+                        signalList.add(signal);
                         BigDecimal strength = signal.getStrength();
                         if (strength == null || strength.compareTo(ZERO) <= 0) continue;
-
+                        BigDecimal maxPosition = pos.getMaxPosition();
                         if (signal.getSign() == 0) {
                             // ===== 买 =====
-                            BigDecimal buyAmount = cash.multiply(strength);
-                            BigDecimal shares = buyAmount.divide(price, 0, RoundingMode.HALF_DOWN);
-                            BigDecimal cost = shares.multiply(price);
+                            // 目标买入金额 = min(总资产 * 强度, 当前现金)
+                            BigDecimal targetBuyValue = maxPosition.multiply(strength).min(cash);
 
-                            if (cost.compareTo(ZERO) <= 0) continue;
+                            // 转换为股数 = 金额 / 价格
+                            BigDecimal buyShares = targetBuyValue
+                                    .divide(price, 0, RoundingMode.DOWN);
+
+                            if (buyShares.compareTo(ZERO) <= 0) continue;
+
+                            BigDecimal cost = buyShares.multiply(price);
 
                             cash = cash.subtract(cost);
 
-                            pos.setPosition(pos.getPosition().add(shares));
+                            pos.setPosition(pos.getPosition().add(buyShares));
                             pos.setTotalCost(pos.getTotalCost().add(cost));
 
-                            tradeDetailList.add(buildTrade(code, "买", price, shares, cost, ZERO, signal.getDescription(), date));
+                            tradeDetailList.add(
+                                    buildTrade(code, "买", price, buyShares, cost, ZERO, signal.getDescription(), date)
+                            );
 
                         } else {
                             // ===== 卖 =====
@@ -105,7 +112,7 @@ public class PortfolioBackTestEngine {
                                     .divide(pos.getPosition(), 8, RoundingMode.HALF_UP);
 
                             // 最大可卖资金 = maxPosition * strength
-                            BigDecimal targetSellValue = pos.getMaxPosition().multiply(strength);
+                            BigDecimal targetSellValue = maxPosition.multiply(strength);
 
                             // 转换为股数 = 金额 / 价格
                             BigDecimal targetSellShares = targetSellValue
@@ -128,7 +135,6 @@ public class PortfolioBackTestEngine {
                                     buildTrade(code, "卖", price, sellShares, revenue, pnl, signal.getDescription(), date)
                             );
                         }
-                        signalList.add(signal);
                     }
 
                     // ===== 更新持仓 =====
