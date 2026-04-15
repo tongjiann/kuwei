@@ -107,7 +107,7 @@ public class MaSignalDetector implements DetectorInterface {
     @Override
     public String getDetectorName() {
         if (detectorName == null) {
-            detectorName = maPeriod + "买强度:" + buyStrength + "卖强度:" + sellStrength + this.getClass()
+            detectorName = "MA" + maPeriod + "买强度:" + buyStrength + "卖强度:" + sellStrength + this.getClass()
                     .getAnnotation(Detector.class)
                     .name();
         }

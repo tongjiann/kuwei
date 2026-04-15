@@ -34,8 +34,6 @@ public class CustomDetector extends BaseModel {
     /**
      * 配置参数
      */
-    @Length(max = 100, message = "配置参数长度应小于100")
-    @BindQuery(comparison = Comparison.LIKE)
     @TableField()
     private String configParam;
 
