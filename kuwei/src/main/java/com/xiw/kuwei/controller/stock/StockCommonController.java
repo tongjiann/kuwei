@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * 股票每日信息
+ * 股票
  *
  * @author MyName
  * @version 1.0

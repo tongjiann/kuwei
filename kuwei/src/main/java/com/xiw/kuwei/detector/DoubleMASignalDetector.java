@@ -21,9 +21,9 @@ import java.util.List;
 @Detector(name = "双均线交易信号识别器")
 public class DoubleMASignalDetector implements DetectorInterface {
 
-    private final BigDecimal buyStrength = BigDecimal.ONE;
+    private final BigDecimal buyStrength;
 
-    private final BigDecimal sellStrength = BigDecimal.ONE;
+    private final BigDecimal sellStrength;
 
     private final int maPeriodSlow;
 
@@ -31,12 +31,14 @@ public class DoubleMASignalDetector implements DetectorInterface {
 
     private String detectorName;
 
-    public DoubleMASignalDetector(int maPeriod1, int maPeriod2) {
-        if (maPeriod1 <= 0 || maPeriod2 <= 0 || maPeriod1 == maPeriod2) {
-            throw new LogicalException("参数不合法+" + maPeriod1 + "|" + maPeriod2);
+    public DoubleMASignalDetector(Integer maPeriodQuick, Integer maPeriodSlow, BigDecimal buyStrength, BigDecimal sellStrength) {
+        if (maPeriodQuick <= 0 || maPeriodSlow <= 0 || maPeriodQuick.equals(maPeriodSlow)) {
+            throw new LogicalException("参数不合法+" + maPeriodQuick + "|" + maPeriodSlow);
         }
-        this.maPeriodSlow = Math.max(maPeriod1, maPeriod2);
-        this.maPeriodQuick = Math.min(maPeriod1, maPeriod2);
+        this.buyStrength = buyStrength;
+        this.sellStrength = sellStrength;
+        this.maPeriodSlow = maPeriodSlow;
+        this.maPeriodQuick = maPeriodQuick;
     }
 
     private void ensureMaCalculated(List<StockDailyInfoVO> data) {

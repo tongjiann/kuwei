@@ -27,7 +27,7 @@ public class MacdSignalDetector implements DetectorInterface {
 
     private String detectorName = null;
 
-    public MacdSignalDetector(int fast, int slow, int signal) {
+    public MacdSignalDetector(Integer fast, Integer slow, Integer signal) {
         this.fast = fast;
         this.slow = slow;
         this.signal = signal;

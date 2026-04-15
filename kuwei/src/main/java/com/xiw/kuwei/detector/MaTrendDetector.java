@@ -26,19 +26,19 @@ public class MaTrendDetector implements DetectorInterface {
 
     private String detectorName;
 
-    public MaTrendDetector(int maPeriod) {
+    public MaTrendDetector(Integer maPeriod) {
         this.maPeriod = maPeriod;
         this.buyStrength = BigDecimal.ONE;
         this.sellStrength = BigDecimal.ONE;
     }
 
-    public MaTrendDetector(int maPeriod, BigDecimal strength) {
+    public MaTrendDetector(Integer maPeriod, BigDecimal strength) {
         this.maPeriod = maPeriod;
         this.buyStrength = strength;
         this.sellStrength = strength;
     }
 
-    public MaTrendDetector(int maPeriod, BigDecimal buyStrength, BigDecimal sellStrength) {
+    public MaTrendDetector(Integer maPeriod, BigDecimal buyStrength, BigDecimal sellStrength) {
         this.maPeriod = maPeriod;
         this.buyStrength = buyStrength;
         this.sellStrength = sellStrength;

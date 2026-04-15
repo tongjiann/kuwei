@@ -2,7 +2,7 @@ package com.xiw.kuwei.util;
 
 import com.diboot.core.util.BeanUtils;
 import com.xiw.kuwei.constant.DetectorEnum;
-import com.xiw.kuwei.detector.DetectorFactory;
+import com.xiw.kuwei.detector.DetectorInterface;
 import com.xiw.kuwei.vo.backtest.*;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
@@ -20,13 +20,15 @@ public class PortfolioBackTestEngine {
     public static List<PortfolioBackTestResult> runPortfolioBackTest(
             List<StockInfoVO> stockList,
             BigDecimal initialCash) {
-        return runPortfolioBackTest(stockList, initialCash, Arrays.asList(DetectorEnum.values()));
+        return runPortfolioBackTest(stockList, initialCash, Arrays.stream(DetectorEnum.values())
+                .map(DetectorEnum::getDetectorInterface)
+                .toList());
     }
 
     public static List<PortfolioBackTestResult> runPortfolioBackTest(
             List<StockInfoVO> stockList,
             BigDecimal initialCash,
-            List<DetectorEnum> strategies) {
+            List<DetectorInterface> detectorInterfaceList) {
         List<PortfolioBackTestResult> resultList = new ArrayList<>();
 
         // ===== 1. 收集所有交易日 =====
@@ -39,12 +41,12 @@ public class PortfolioBackTestEngine {
 
             list.forEach(d -> allDates.add(d.getDate()));
         }
-        for (DetectorEnum detectorEnum : strategies) {
+        for (DetectorInterface detectorInterface : detectorInterfaceList) {
 
 
             // ===== 2. 生成信号 =====
             // 策略-日期-股票
-            Map<LocalDate, List<Signal>> dateSignalMap = buildSignalMap(stockList, detectorEnum);
+            Map<LocalDate, List<Signal>> dateSignalMap = buildSignalMap(stockList, detectorInterface);
 
             // ===== 3. 初始化 =====
             BigDecimal cash = initialCash;
@@ -163,7 +165,7 @@ public class PortfolioBackTestEngine {
 
                 records.add(record);
             }
-            resultList.add(buildResult(records, initialCash, dateSignalMap, detectorEnum));
+            resultList.add(buildResult(records, initialCash, dateSignalMap, detectorInterface));
         }
 
 
@@ -172,13 +174,12 @@ public class PortfolioBackTestEngine {
 
     // ===== 构建信号 =====
     private static Map<LocalDate, List<Signal>> buildSignalMap(
-            List<StockInfoVO> stockList, DetectorEnum detectorEnum) {
+            List<StockInfoVO> stockList, DetectorInterface detectorEnum) {
 
         List<Signal> allSignals = new ArrayList<>();
         for (StockInfoVO stock : stockList) {
             allSignals.addAll(
-                    DetectorFactory.getDetector(detectorEnum.getName())
-                            .detectSignals(stock.getStockDailyInfoVOList(), stock.getCode())
+                    detectorEnum.detectSignals(stock.getStockDailyInfoVOList(), stock.getCode())
             );
         }
 
@@ -222,7 +223,7 @@ public class PortfolioBackTestEngine {
     }
 
     private static PortfolioBackTestResult buildResult(List<PortfolioDailyRecord> list,
-                                                       BigDecimal initialCash, Map<LocalDate, List<Signal>> dateSignalMap, DetectorEnum detectorEnum) {
+                                                       BigDecimal initialCash, Map<LocalDate, List<Signal>> dateSignalMap, DetectorInterface detectorInterface) {
 
         PortfolioBackTestResult r = new PortfolioBackTestResult();
         r.setPortfolioDailyRecordList(list);
@@ -235,7 +236,7 @@ public class PortfolioBackTestEngine {
         r.setReturnRate(end.subtract(initialCash)
                 .divide(initialCash, 6, RoundingMode.HALF_UP));
 
-        r.setMaxDrawDown(calcMaxDrawdown(list));
+        r.setMaxDrawDown(calcMaxDrawDown(list));
         r.setSharpeRatio(calcSharpe(list));
         r.setSignalList(dateSignalMap.entrySet()
                 .stream()
@@ -253,11 +254,11 @@ public class PortfolioBackTestEngine {
                 .filter(Objects::nonNull)
                 .flatMap(Collection::stream)
                 .sorted(Comparator.comparing(TradeDetail::getDate)).toList());
-        r.setStrategy(detectorEnum.getDetectorInterface().getDetectorName());
+        r.setStrategy(detectorInterface.getDetectorName());
         return r;
     }
 
-    private static BigDecimal calcMaxDrawdown(List<PortfolioDailyRecord> list) {
+    private static BigDecimal calcMaxDrawDown(List<PortfolioDailyRecord> list) {
 
         BigDecimal peak = list.get(0).getTotalAsset();
         BigDecimal max = ZERO;

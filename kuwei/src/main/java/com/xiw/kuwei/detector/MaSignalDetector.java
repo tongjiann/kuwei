@@ -30,7 +30,7 @@ public class MaSignalDetector implements DetectorInterface {
         this.maPeriod = maPeriod;
     }
 
-    public MaSignalDetector(int maPeriod, BigDecimal buyStrength, BigDecimal sellStrength) {
+    public MaSignalDetector(Integer maPeriod, BigDecimal buyStrength, BigDecimal sellStrength) {
         this.maPeriod = maPeriod;
         this.buyStrength = buyStrength;
         this.sellStrength = sellStrength;
@@ -107,7 +107,9 @@ public class MaSignalDetector implements DetectorInterface {
     @Override
     public String getDetectorName() {
         if (detectorName == null) {
-            detectorName = maPeriod + this.getClass().getAnnotation(Detector.class).name();
+            detectorName = maPeriod + "买强度:" + buyStrength + "卖强度:" + sellStrength + this.getClass()
+                    .getAnnotation(Detector.class)
+                    .name();
         }
         return detectorName;
     }
