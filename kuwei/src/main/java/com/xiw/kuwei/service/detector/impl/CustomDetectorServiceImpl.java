@@ -5,6 +5,7 @@ import cn.hutool.json.JSON;
 import cn.hutool.json.JSONUtil;
 import com.diboot.core.service.impl.BaseServiceImpl;
 import com.diboot.iam.util.IamSecurityUtils;
+import com.xiw.kuwei.constant.CommonEnum;
 import com.xiw.kuwei.detector.DetectorFactory;
 import com.xiw.kuwei.detector.DetectorInterface;
 import com.xiw.kuwei.entity.detector.CustomDetector;
@@ -45,7 +46,7 @@ public class CustomDetectorServiceImpl extends BaseServiceImpl<CustomDetectorMap
     public List<DetectorInterface> getCustomDetector() {
         List<CustomDetector> list = lambdaQuery()
                 .eq(CustomDetector::getRelatedAccountId, IamSecurityUtils.getCurrentUserId())
-                .eq(CustomDetector::getIsEnable,"t")
+                .eq(CustomDetector::getIsEnable, CommonEnum.TRUE.getCode())
                 .list();
         List<DetectorInterface> result = new ArrayList<>();
         for (CustomDetector customDetector : list) {
