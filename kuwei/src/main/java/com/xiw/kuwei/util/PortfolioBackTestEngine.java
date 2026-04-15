@@ -255,11 +255,13 @@ public class PortfolioBackTestEngine {
                 )
                 // 4. 收集为有序 List
                 .toList());
+        r.setSignalSize(r.getSignalList().size());
         r.setTradeDetailList(list.stream()
                 .map(PortfolioDailyRecord::getTradeList)
                 .filter(Objects::nonNull)
                 .flatMap(Collection::stream)
                 .sorted(Comparator.comparing(TradeDetail::getDate)).toList());
+        r.setTradeDetailSize(r.getTradeDetailList().size());
         r.setStrategy(detectorInterface.getDetectorName());
         return r;
     }

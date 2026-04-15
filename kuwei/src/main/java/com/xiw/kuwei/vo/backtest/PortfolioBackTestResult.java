@@ -15,10 +15,19 @@ public class PortfolioBackTestResult {
 
     private BigDecimal endAsset;
 
+    /**
+     * 收益率
+     */
     private BigDecimal returnRate;
 
+    /**
+     * 最大回撤
+     */
     private BigDecimal maxDrawDown;
 
+    /**
+     * 夏普率
+     */
     private BigDecimal sharpeRatio;
 
     private String strategy;
@@ -26,8 +35,12 @@ public class PortfolioBackTestResult {
     @JsonIgnore
     private List<Signal> signalList;
 
+    private Integer signalSize;
+
     @JsonIgnore
     private List<TradeDetail> tradeDetailList;
+
+    private Integer tradeDetailSize;
 
 
 }
