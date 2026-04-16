@@ -5,7 +5,6 @@ import cn.hutool.core.text.CharSequenceUtil;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.diboot.core.entity.AbstractEntity;
 import com.diboot.core.util.BeanUtils;
-import com.xiw.kuwei.detector.DetectorInterface;
 import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.entity.stock.StockInfo;
 import com.xiw.kuwei.exception.LogicalException;
@@ -299,10 +298,8 @@ public class StockCommonServiceImpl implements StockCommonService {
         StockInfoVO stockInfoVO = getBaseStockInfoByCode(code, startDate);
         // ================= 一次性回测（核心优化） =================
 
-        List<DetectorInterface> detectorInterfaceList = customDetectorService.getCustomDetector();
-
         List<PortfolioBackTestResult> portfolioBackTestResultList =
-                PortfolioBackTestEngine.runPortfolioBackTest(Collections.singletonList(stockInfoVO), new BigDecimal("10000000"), detectorInterfaceList);
+                PortfolioBackTestEngine.runPortfolioBackTest(Collections.singletonList(stockInfoVO), new BigDecimal("10000000"), customDetectorService.getCustomDetector());
 
 
         // // ================= 图表 =================
@@ -407,7 +404,9 @@ public class StockCommonServiceImpl implements StockCommonService {
             }).filter(Objects::nonNull).toList();
         }
 
-        List<PortfolioBackTestResult> portfolioBackTestResultList = PortfolioBackTestEngine.runPortfolioBackTest(stockInfoVOList, new BigDecimal("10000000"));
+        List<PortfolioBackTestResult> portfolioBackTestResultList =
+                PortfolioBackTestEngine.runPortfolioBackTest(stockInfoVOList, new BigDecimal("10000000"),
+                        customDetectorService.getCustomDetector());
 
 
         // // ================= 图表 =================

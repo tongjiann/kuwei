@@ -1,14 +1,11 @@
 package com.xiw.kuwei.constant;
 
 import com.xiw.kuwei.detector.DetectorInterface;
-import com.xiw.kuwei.detector.DoubleMASignalDetector;
 import lombok.Getter;
 
 @Getter
+@Deprecated
 public enum DetectorEnum {
-    MA10_30(new DoubleMASignalDetector(10, 30)),
-    MA5_15(new DoubleMASignalDetector(5, 15)),
-    MA20_60(new DoubleMASignalDetector(20, 60)),
     ;
 
 

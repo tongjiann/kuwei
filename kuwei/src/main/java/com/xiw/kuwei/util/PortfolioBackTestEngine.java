@@ -1,7 +1,6 @@
 package com.xiw.kuwei.util;
 
 import com.diboot.core.util.BeanUtils;
-import com.xiw.kuwei.constant.DetectorEnum;
 import com.xiw.kuwei.detector.DetectorInterface;
 import com.xiw.kuwei.vo.backtest.*;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
@@ -16,14 +15,6 @@ import java.util.stream.Collectors;
 public class PortfolioBackTestEngine {
 
     private static final BigDecimal ZERO = BigDecimal.ZERO;
-
-    public static List<PortfolioBackTestResult> runPortfolioBackTest(
-            List<StockInfoVO> stockList,
-            BigDecimal initialCash) {
-        return runPortfolioBackTest(stockList, initialCash, Arrays.stream(DetectorEnum.values())
-                .map(DetectorEnum::getDetectorInterface)
-                .toList());
-    }
 
     public static List<PortfolioBackTestResult> runPortfolioBackTest(
             List<StockInfoVO> stockList,
