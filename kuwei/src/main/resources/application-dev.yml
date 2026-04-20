@@ -47,7 +47,6 @@ diboot:
       - /v3/**
       - /doc.html
       - /diboot-devtools/** # 允许devtools直接访问
-      - /**
     enable-permission-check: false
   #     - /auth/sso/** # 单点登录集成需打开该注释
   lcdp:
