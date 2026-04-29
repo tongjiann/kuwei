@@ -1,6 +1,7 @@
 package com.xiw.kuwei.service.stock;
 
 import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
+import com.xiw.kuwei.vo.stock.SimpleStockVO;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
 
 import java.time.LocalDate;
@@ -25,5 +26,8 @@ public interface StockCommonService {
     void syncDailyInfo(String stockId);
 
     List<PortfolioBackTestResult> multiTestByCodeList(List<String> codeList, LocalDate startDate);
+
+
+    List<SimpleStockVO> getSimpleStockInfo(String key);
 
 }

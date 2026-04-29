@@ -3,6 +3,7 @@ package com.xiw.kuwei.helper.fetcher;
 import com.xiw.kuwei.annotation.Fetcher;
 import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.entity.stock.StockInfo;
+import com.xiw.kuwei.vo.stock.SimpleStockVO;
 
 import java.util.List;
 
@@ -24,6 +25,8 @@ public abstract class abstractFetcher {
     }
 
     abstract StockInfo doGetStockInfo(String code, String name);
+
+    public abstract List<SimpleStockVO> getSimpleStockVO(String key);
 
 
 }

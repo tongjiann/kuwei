@@ -19,6 +19,7 @@ import com.xiw.kuwei.util.ChartUtil;
 import com.xiw.kuwei.util.PortfolioBackTestEngine;
 import com.xiw.kuwei.util.StockUtil;
 import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
+import com.xiw.kuwei.vo.stock.SimpleStockVO;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
 import jakarta.annotation.Resource;
@@ -528,6 +529,11 @@ public class StockCommonServiceImpl implements StockCommonService {
 
     private void initStockInfo(String code) {
         initStockInfo(code, code);
+    }
+
+    @Override
+    public List<SimpleStockVO> getSimpleStockInfo(String key) {
+        return FetcherManager.getFetcher().getSimpleStockVO(key);
     }
 
 }

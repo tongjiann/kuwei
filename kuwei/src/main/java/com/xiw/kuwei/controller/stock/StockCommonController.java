@@ -125,5 +125,9 @@ public class StockCommonController extends BaseController {
         return JsonResult.OK();
     }
 
+    @RequestMapping("get-simple-stock-info")
+    public JsonResult<?> getSimpleStockInfo(@RequestParam String key) {
+        return JsonResult.OK(stockCommonService.getSimpleStockInfo(key));
+    }
 
 }
