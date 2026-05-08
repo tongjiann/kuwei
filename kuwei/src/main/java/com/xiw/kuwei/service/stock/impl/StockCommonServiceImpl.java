@@ -5,23 +5,25 @@ import cn.hutool.core.text.CharSequenceUtil;
 import com.baomidou.mybatisplus.core.toolkit.IdWorker;
 import com.diboot.core.entity.AbstractEntity;
 import com.diboot.core.util.BeanUtils;
+import com.xiw.kuwei.detector.DetectorInterface;
+import com.xiw.kuwei.dto.ding.SignalMarkdown;
 import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.entity.stock.StockInfo;
 import com.xiw.kuwei.exception.LogicalException;
+import com.xiw.kuwei.helper.fetcher.AbstractFetcher;
 import com.xiw.kuwei.helper.fetcher.FetcherManager;
-import com.xiw.kuwei.helper.fetcher.abstractFetcher;
+import com.xiw.kuwei.helper.message.MessageHelper;
 import com.xiw.kuwei.service.detector.CustomDetectorService;
 import com.xiw.kuwei.service.stock.StockCommonService;
 import com.xiw.kuwei.service.stock.StockDailyInfoService;
 import com.xiw.kuwei.service.stock.StockInfoService;
-import com.xiw.kuwei.util.BigDecimalUtil;
-import com.xiw.kuwei.util.ChartUtil;
-import com.xiw.kuwei.util.PortfolioBackTestEngine;
-import com.xiw.kuwei.util.StockUtil;
+import com.xiw.kuwei.util.*;
 import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
+import com.xiw.kuwei.vo.backtest.Signal;
 import com.xiw.kuwei.vo.stock.SimpleStockVO;
 import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
+import com.xiw.kuwei.vo.stock.StockSignalVO;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.jetbrains.annotations.NotNull;
@@ -60,12 +62,15 @@ public class StockCommonServiceImpl implements StockCommonService {
     @Resource
     private CustomDetectorService customDetectorService;
 
+    @Resource
+    private MessageHelper messageHelper;
+
     @Override
     @Transactional
     public void initStockInfo(String code, String name) {
 
         clearStockInfo(code);
-        abstractFetcher fetcher = FetcherManager.getFetcher();
+        AbstractFetcher fetcher = FetcherManager.getFetcher();
         StockInfo stockInfo = fetcher.getStockInfo(code, name);
         stockInfo.setId(IdWorker.getIdStr());
         List<StockDailyInfo> stockDailyInfoList = fetcher.getStockDailyInfo(stockInfo);
@@ -477,7 +482,7 @@ public class StockCommonServiceImpl implements StockCommonService {
                 }
                 daysToSync = (int) ChronoUnit.DAYS.between(startDate, today) + 1;
             }
-            abstractFetcher fetcher = FetcherManager.getFetcher();
+            AbstractFetcher fetcher = FetcherManager.getFetcher();
             // 2.2 调用 fetcher 获取数据
             List<StockDailyInfo> dailyInfoList;
             String code = stockInfo.getCode();
@@ -534,6 +539,75 @@ public class StockCommonServiceImpl implements StockCommonService {
     @Override
     public List<SimpleStockVO> getSimpleStockInfo(String key) {
         return FetcherManager.getFetcher().getSimpleStockVO(key);
+    }
+
+
+    @Override
+    public List<StockSignalVO> getStockSignalVOList(List<StockInfo> stockInfoList, List<DetectorInterface> detectorInterfaceList) {
+        if (CollUtil.isEmpty(detectorInterfaceList)) {
+            throw new LogicalException("当前未定义策略");
+        }
+        List<StockSignalVO> stockSignalVOList = new ArrayList<>();
+        AbstractFetcher fetcher = FetcherManager.getFetcher();
+        boolean hasTodayData = !AStockTradeTimeUtil.isTradingTime();
+        for (StockInfo stockInfo : stockInfoList) {
+            List<StockDailyInfo> stockDailyInfoList = fetcher.getStockDailyInfo(stockInfo, 30);
+            StockInfoVO stockInfoVO = new StockInfoVO();
+            BeanUtils.copyProperties(stockInfo, stockInfoVO);
+            stockInfoVO.setStockDailyInfoVOList(stockDailyInfoList.stream().map(e -> {
+                StockDailyInfoVO stockDailyInfoVO = new StockDailyInfoVO();
+                BeanUtils.copyProperties(e, stockDailyInfoVO);
+                return stockDailyInfoVO;
+            }).toList());
+            StockSignalVO stockSignalVO = new StockSignalVO();
+            stockSignalVO.setStockInfoVO(stockInfoVO);
+            stockSignalVOList.add(stockSignalVO);
+        }
+        if (!hasTodayData) {
+            Map<String, StockDailyInfoVO> codeDailyInfoMap = fetcher.getCurrentStockDailyInfo(stockInfoList);
+            for (StockSignalVO stockSignalVO : stockSignalVOList) {
+                StockInfoVO stockInfoVO = stockSignalVO.getStockInfoVO();
+                String code = stockInfoVO.getCode();
+                if (codeDailyInfoMap.containsKey(code)) {
+                    StockDailyInfoVO stockDailyInfoVO = codeDailyInfoMap.get(code);
+                    List<StockDailyInfoVO> stockDailyInfoVOList = new ArrayList<>(stockInfoVO.getStockDailyInfoVOList());
+                    stockDailyInfoVOList.add(stockDailyInfoVO);
+                    stockInfoVO.setStockDailyInfoVOList(stockDailyInfoVOList);
+                }
+            }
+        }
+        for (StockSignalVO stockSignalVO : stockSignalVOList) {
+            for (DetectorInterface detectorInterface : detectorInterfaceList) {
+                Map<LocalDate, List<Signal>> dateSignalListMap = PortfolioBackTestEngine.buildSignalMap(
+                        Collections.singletonList(stockSignalVO.getStockInfoVO()), detectorInterface);
+                Map<LocalDate, List<Signal>> dateSignalMap = stockSignalVO.getDateSignalMap();
+                if (dateSignalMap == null) {
+                    stockSignalVO.setDateSignalMap(new HashMap<>());
+                    dateSignalMap = stockSignalVO.getDateSignalMap();
+                }
+                for (Map.Entry<LocalDate, List<Signal>> localDateListEntry : dateSignalListMap.entrySet()) {
+                    LocalDate key = localDateListEntry.getKey();
+                    List<Signal> value = localDateListEntry.getValue();
+                    if (!dateSignalMap.containsKey(key)) {
+                        dateSignalMap.put(key, new ArrayList<>());
+                    }
+                    dateSignalMap.get(key).addAll(value);
+                }
+            }
+        }
+        return stockSignalVOList;
+    }
+
+    @Override
+    public void pushDailySignalInfo(String userId) {
+        List<StockInfo> stockInfoList = stockInfoService.lambdaQuery().eq(StockInfo::getIsFollowed, true).list();
+        List<DetectorInterface> detectorInterfaceList = customDetectorService.getCustomDetector(userId);
+
+        List<StockSignalVO> stockSignalVOList = getStockSignalVOList(stockInfoList, detectorInterfaceList);
+        LocalDate now = LocalDate.now();
+        messageHelper.sendMessage(stockSignalVOList.stream()
+                .filter(e -> e.getDateSignalMap().containsKey(now))
+                .toList(), SignalMarkdown.class, "每日股票信号");
     }
 
 }

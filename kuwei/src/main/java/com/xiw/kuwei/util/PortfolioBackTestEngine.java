@@ -170,7 +170,7 @@ public class PortfolioBackTestEngine {
     }
 
     // ===== 构建信号 =====
-    private static Map<LocalDate, List<Signal>> buildSignalMap(
+    public static Map<LocalDate, List<Signal>> buildSignalMap(
             List<StockInfoVO> stockList, DetectorInterface detectorEnum) {
 
         List<Signal> allSignals = new ArrayList<>();
@@ -183,6 +183,11 @@ public class PortfolioBackTestEngine {
         return allSignals.stream().collect(Collectors.groupingBy(s -> s.getDateTime().toLocalDate()));
 
     }
+
+    public static void buildSignalMapByBaseStockInfo(StockInfoVO stockInfoVO) {
+
+    }
+
 
     private static StockDailyInfoVO findDaily(List<StockDailyInfoVO> list, LocalDate date) {
         return list.stream()
@@ -304,5 +309,6 @@ public class PortfolioBackTestEngine {
         return std == 0 ? ZERO :
                 BigDecimal.valueOf(avg / std * Math.sqrt(252));
     }
+
 
 }

@@ -4,6 +4,7 @@ package com.xiw.kuwei.controller.stock;
 import cn.hutool.core.collection.CollUtil;
 import com.diboot.core.controller.BaseController;
 import com.diboot.core.vo.JsonResult;
+import com.diboot.iam.util.IamSecurityUtils;
 import com.xiw.kuwei.service.stock.StockCommonService;
 import com.xiw.kuwei.vo.backtest.PortfolioBackTestResult;
 import com.xiw.kuwei.vo.stock.StockInfoVO;
@@ -128,6 +129,12 @@ public class StockCommonController extends BaseController {
     @RequestMapping("get-simple-stock-info")
     public JsonResult<?> getSimpleStockInfo(@RequestParam String key) {
         return JsonResult.OK(stockCommonService.getSimpleStockInfo(key));
+    }
+
+    @RequestMapping("push-daily-signal-info")
+    public JsonResult<?> pushDailySignalInfo() {
+        stockCommonService.pushDailySignalInfo(IamSecurityUtils.getCurrentUserId());
+        return JsonResult.OK();
     }
 
 }

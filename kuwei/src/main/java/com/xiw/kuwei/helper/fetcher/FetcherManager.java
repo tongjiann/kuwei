@@ -8,7 +8,7 @@ import java.util.Map;
 
 public class FetcherManager {
 
-    private Map<Integer, abstractFetcher> fetcherMap;
+    private Map<Integer, AbstractFetcher> fetcherMap;
 
     {
         // todo init fetcher map
@@ -17,7 +17,7 @@ public class FetcherManager {
         }
     }
 
-    public static abstractFetcher getFetcher() {
+    public static AbstractFetcher getFetcher() {
         return new SinaFetcher();
     }
 

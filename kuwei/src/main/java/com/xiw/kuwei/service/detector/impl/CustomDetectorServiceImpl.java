@@ -44,8 +44,13 @@ public class CustomDetectorServiceImpl extends BaseServiceImpl<CustomDetectorMap
 
     @Override
     public List<DetectorInterface> getCustomDetector() {
+        return getCustomDetector(IamSecurityUtils.getCurrentUserId());
+    }
+
+    @Override
+    public List<DetectorInterface> getCustomDetector(String userId) {
         List<CustomDetector> list = lambdaQuery()
-                .eq(CustomDetector::getRelatedAccountId, IamSecurityUtils.getCurrentUserId())
+                .eq(CustomDetector::getRelatedAccountId, userId)
                 .eq(CustomDetector::getIsEnable, CommonEnum.TRUE.getCode())
                 .list();
         List<DetectorInterface> result = new ArrayList<>();

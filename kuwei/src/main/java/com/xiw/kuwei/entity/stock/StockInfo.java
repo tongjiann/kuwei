@@ -97,4 +97,10 @@ public class StockInfo extends BaseModel {
      */
     @TableField()
     private LocalDate dataStartTime;
+
+    /**
+     * 是否关注
+     */
+    @TableField()
+    private Boolean isFollowed;
 }

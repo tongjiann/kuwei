@@ -17,4 +17,6 @@ public interface CustomDetectorService extends BaseService<CustomDetector> {
 
     List<DetectorInterface> getCustomDetector();
 
+    List<DetectorInterface> getCustomDetector(String userId);
+
 }

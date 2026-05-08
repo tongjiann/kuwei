@@ -4,10 +4,12 @@ import com.xiw.kuwei.annotation.Fetcher;
 import com.xiw.kuwei.entity.stock.StockDailyInfo;
 import com.xiw.kuwei.entity.stock.StockInfo;
 import com.xiw.kuwei.vo.stock.SimpleStockVO;
+import com.xiw.kuwei.vo.stock.StockDailyInfoVO;
 
 import java.util.List;
+import java.util.Map;
 
-public abstract class abstractFetcher {
+public abstract class AbstractFetcher {
 
     private String platform = null;
 
@@ -27,6 +29,8 @@ public abstract class abstractFetcher {
     abstract StockInfo doGetStockInfo(String code, String name);
 
     public abstract List<SimpleStockVO> getSimpleStockVO(String key);
+
+    public abstract Map<String, StockDailyInfoVO> getCurrentStockDailyInfo(List<StockInfo> stockInfoList);
 
 
 }
