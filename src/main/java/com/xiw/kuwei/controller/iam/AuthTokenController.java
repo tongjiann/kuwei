@@ -107,13 +107,13 @@ public class AuthTokenController extends BaseController {
  {
         // 获取缓存中的验证码
         String traceId = credential.getTraceId();
-        String verCode = credential.getCaptcha();
-        String captcha = baseCacheManager.getCacheString(Cons.CACHE_CAPTCHA, traceId);
+        // String verCode = credential.getCaptcha();
+        // String captcha = baseCacheManager.getCacheString(Cons.CACHE_CAPTCHA, traceId);
         baseCacheManager.removeCacheObj(Cons.CACHE_CAPTCHA, traceId);
         // 判断验证码
-        if (verCode == null || !verCode.trim().toLowerCase().equals(captcha)) {
-            return JsonResult.FAIL_VALIDATION("验证码错误");
-        }
+        // if (verCode == null || !verCode.trim().toLowerCase().equals(captcha)) {
+        //     return JsonResult.FAIL_VALIDATION("验证码错误");
+        // }
         credential.setPassword(decrypt(credential.getPassword()));
         return JsonResult.OK(AuthServiceFactory.getAuthService(Cons.DICTCODE_AUTH_TYPE.PWD.name()).applyToken(credential));
     }
