@@ -15,12 +15,12 @@ spring:
       max-lifetime: 60000 # 连接的最大生命周期
 
 # Redis config
-#  data:
-#    redis:
-#      database: 0
-#      port: 6379
-#      host: localhost
-#      password:
+  data:
+    redis:
+      database: 0
+      port: 6379
+      host: localhost
+      password:
 
 logging:
   level:
@@ -59,3 +59,10 @@ diboot:
       output-path-mobile-ui: diboot-mobile-ui/
       #output-path-sql: docs/update.sql # 数据结构变更SQL记录
       #upgrade: true # 开启版本升级
+xiw:
+  message:
+    ding:
+      default-access-token: x
+      default-secret-key: x
+  task:
+    enable: true
