@@ -1,5 +1,5 @@
-# 拉取jdk8作为基础镜像
-FROM openjdk:17
+# 拉取jdk17作为基础镜像
+FROM eclipse-temurin:17-jre
 # 作者
 MAINTAINER Xiwang <xiw@xiw.com>
 # 添加jar到镜像并命名为kuwei.jar
