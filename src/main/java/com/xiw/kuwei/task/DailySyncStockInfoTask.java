@@ -11,10 +11,10 @@ import org.springframework.beans.BeanUtils;
 @Data
 @ToString(callSuper = true)
 @EqualsAndHashCode(callSuper = true)
-public class DailySignalInfoTask extends AbstractTask {
+public class DailySyncStockInfoTask extends AbstractTask {
 
 
-    public DailySignalInfoTask(ScheduleTask scheduleTask) {
+    public DailySyncStockInfoTask(ScheduleTask scheduleTask) {
         super();
         BeanUtils.copyProperties(scheduleTask, this);
     }
@@ -22,7 +22,7 @@ public class DailySignalInfoTask extends AbstractTask {
 
     @Override
     public void doExecute() {
-        ContextHolder.getBean(StockCommonService.class).pushDailySignalInfo(getRelatedAccountId());
+        ContextHolder.getBean(StockCommonService.class).syncDailyInfo(null);
     }
 
     @Override

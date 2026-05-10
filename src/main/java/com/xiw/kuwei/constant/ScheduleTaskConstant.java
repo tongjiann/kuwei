@@ -17,6 +17,11 @@ public final class ScheduleTaskConstant {
      */
     public static final int TASK_TYPE_DAILY_STOCK_SIGNAL = 1;
 
+    /**
+     * 任务类型：每日同步现有股票信息
+     */
+    public static final int TASK_TYPE_DAILY_SYNC_STOCK_INFO = 2;
+
 
     /**
      * 执行方式：准时

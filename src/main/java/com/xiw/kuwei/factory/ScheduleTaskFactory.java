@@ -4,12 +4,12 @@ import com.xiw.kuwei.entity.common.ScheduleTask;
 import com.xiw.kuwei.exception.LogicalException;
 import com.xiw.kuwei.task.AbstractTask;
 import com.xiw.kuwei.task.DailySignalInfoTask;
+import com.xiw.kuwei.task.DailySyncStockInfoTask;
 import com.xiw.kuwei.task.MessageTask;
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-import static com.xiw.kuwei.constant.ScheduleTaskConstant.TASK_TYPE_DAILY_STOCK_SIGNAL;
-import static com.xiw.kuwei.constant.ScheduleTaskConstant.TASK_TYPE_MESSAGE;
+import static com.xiw.kuwei.constant.ScheduleTaskConstant.*;
 
 
 /**
@@ -28,7 +28,7 @@ public final class ScheduleTaskFactory {
         return switch (taskType) {
             case TASK_TYPE_MESSAGE -> new MessageTask(scheduleTask);
             case TASK_TYPE_DAILY_STOCK_SIGNAL -> new DailySignalInfoTask(scheduleTask);
-
+            case TASK_TYPE_DAILY_SYNC_STOCK_INFO -> new DailySyncStockInfoTask(scheduleTask);
             default -> throw new LogicalException("未知的定时任务类型");
         };
     }
